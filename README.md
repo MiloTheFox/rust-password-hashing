@@ -68,15 +68,13 @@ To actually run the code,
 
 1. **Clone the Repository**: First, you need to clone the repository to your local machine. You can do this using Git with the following command:
    ```shell
-   git clone <repository_url>
+   git clone https://github.com/LunaTheFox20/rust-password-hashing.git
    ```
-   Replace `<repository_url>` with the URL of your Git repository.
 
 2. **Navigate to the Project Directory**: Use the `cd` command to navigate to the directory containing the project files:
    ```shell
-   cd <project_directory>
+   cd rust-password-hashing
    ```
-   Replace `<project_directory>` with the name of the directory created when you cloned the repository.
 
 3. **Build the Project**: Use the Rust package manager, Cargo, to build the project. This will compile your code and create an executable file. Run the following command:
    ```shell
@@ -90,4 +88,4 @@ To actually run the code,
    ```
    The program will prompt you to enter the password you want to hash using Argon2.
 
-5. After that, the program will return the generated hash and verifies the hash to ensure its legitimacy.
+5. After you entered the password that you want to hash, the program will return the generated hash and verifies the hash to ensure its legitimacy.
