@@ -18,7 +18,7 @@ use test::Bencher;
 #[bench]
 fn bench_password_hashing(b: &mut Bencher) {
     b.iter(|| {
-        let password = b"ewrfi48834]]}[[[]488945t7ghug547tz45uigrte7tz45789tz548ith4eiugh";
+        let password = b"thepasswordgoeshere";
         let salt = SaltString::generate(&mut OsRng);
 
         // Argon2 with default params (Argon2id v19)
