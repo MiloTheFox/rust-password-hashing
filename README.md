@@ -1,6 +1,8 @@
 # Password Hashing in Rust using Argon2
 This repository features an implementation of password hashing in Rust using the Argon2 algorithm. For those who are not familiar with this topic, password hashing is a way of securing user passwords by transforming them into a different format, which is then stored instead of the original password.
 
+### Keep in mind that this is a basic implementation and will most likely get updates every once in a while to maintain its performance and readability.
+
 ## Argon2
 
 Argon2 is a modern password hashing algorithm that won the [Password Hashing Competition](https://www.password-hashing.net/) in 2015. It is designed to be resistant against brute-force and side-channel attacks by requiring a large amount of memory and time to compute the hash.
