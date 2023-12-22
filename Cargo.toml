@@ -11,3 +11,4 @@ rand_core = { version = "*", features = ["getrandom"] }
 colored = "*"
 thiserror = "*"
 zeroize = "*"
+num_cpus = "*"
