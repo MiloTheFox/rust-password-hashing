@@ -63,21 +63,28 @@ To actually run the code,
    git clone https://github.com/LunaTheFox20/rust-password-hashing.git
    ```
 
-2. **Navigate to the Project Directory**: Use the `cd` command to navigate to the directory containing the project files:
+2. **Navigate to the Project Directory**: Use the `cd` (`chdir` if you use Linux or MacOS) command to navigate to the directory containing the project files:
+- Windows:
+  
    ```shell
    cd rust-password-hashing
    ```
+  
+ - MacOS & Linux 
+   ```shell
+   chdir rust-password-hashing
+   ```
 
-3. **Build the Project**: Use the Rust package manager, Cargo, to build the project. This will compile your code and create an executable file. Run the following command:
+4. **Build the Project**: Use the Rust package manager, Cargo, to build the project. This will compile your code and create an executable file. Run the following command:
    ```shell
    cargo build --release
    ```
    The `--release` flag will build the project in release mode, with optimizations for performance.
 
-4. **Run the Program**: Finally, you can run the program using Cargo with the following command:
-   ```shell
+5. **Run the Program**: Finally, you can run the program using Cargo with the following command:
+   ```bash
    cargo run --release
    ```
    The program will prompt you to enter the password you want to hash using Argon2.
 
-5. After you entered the password that you want to hash, the program will return the generated hash and verifies the hash to ensure its legitimacy.
+6. After you entered the password that you want to hash, the program will return the generated hash and verifies the hash to ensure its legitimacy.
