@@ -47,22 +47,14 @@ Here are the necessary steps to get the Rust Compiler for the different Operatin
   1. Install Visual Studio (recommended) or the Microsoft C++ Build Tools.
   2. Install Rust from the Rust website. The website detects that you're running Windows, and it offers you 64- and 32-bit installers of the rustup tool for Windows.
   3. Install the Microsoft C and C++ (MSVC) toolchain by running `rustup default stable-msvc`.
-  4. Write your Rust program in a file with a `.rs` extension.
-  5. Compile the program with the command `rustc filename.rs`. This will create an executable file.
-  6. Run the executable file in the command prompt.
 
   **MacOS**:
   1. Open a terminal and enter the following command: `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`.
   2. Install a C compiler by running: `xcode-select --install`.
-  3. Write your Rust program in a file with a `.rs` extension.
-  4. Compile the program with the command `rustc filename.rs`. This will create an executable file.
-  5. Run the executable file in the terminal.
   
   **Linux**:
   1. Download the installation script with the curl command and run it in the terminal: `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`.
   2. Write your Rust program in a file with a `.rs` extension.
-  3. Compile the program with the command `rustc filename.rs`. This will create an executable file.
-  4. Run the executable file in the terminal.
 
 To actually run the code, 
 
