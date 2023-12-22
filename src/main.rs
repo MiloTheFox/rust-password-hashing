@@ -3,6 +3,8 @@ use argon2::{
     password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
     Algorithm, Argon2, ParamsBuilder,
 };
+
+use num_cpus;
 use rand_core::OsRng; // For generating random numbers
 use std::error::Error;
 use std::io::{self, Write}; // For input/output operations
@@ -68,57 +70,49 @@ macro_rules! error {
 fn main() -> Result<(), Box<dyn Error>> {
     let mut password = String::new();
     print!("Please enter your password: ");
-    io::stdout().flush()?; // flush it to the screen
+    io::stdout().flush()?;
 
-    io::stdin().read_line(&mut password)?; // Read the password from the user
-    let password_trimmed = password.trim(); // Trim the password
-    let password_bytes: Vec<u8> = password_trimmed.bytes().collect(); // Convert the password to bytes
-    if password_bytes.is_empty() {
-        error!("You have to provide a password!"); // If no password is provided, log an error
+    io::stdin().read_line(&mut password)?;
+    let password_trimmed = password.trim();
+    if password_trimmed.is_empty() {
+        error!("You have to provide a password!");
         return Ok(());
     }
 
-    let salt = SaltString::generate(&mut OsRng); // Generate a random salt
+    let password_bytes = password_trimmed.as_bytes();
 
-    // Define the parameters for the Argon2 algorithm
+    let salt = SaltString::generate(&mut OsRng);
+
     let params = ParamsBuilder::new()
-        .m_cost(256)
-        .t_cost(32)
-        .p_cost(16)
-        .output_len(64)
+        .m_cost(128)
+        .t_cost(16)
+        .p_cost(num_cpus::get().try_into().unwrap())
+        .output_len(32)
         .build();
 
-    // Create a new Argon2 instance
     let argon2 = Argon2::new(
         Algorithm::Argon2id,
         argon2::Version::V0x13,
         params.map_err(|e| MyError::Argon(ArgonError::from(e)))?,
     );
 
-    // Hash the password
     let password_hash = argon2
-        .hash_password(password_trimmed.as_bytes(), salt.as_salt())
+        .hash_password(password_bytes, salt.as_salt())
         .map_err(|e| MyError::Argon(ArgonError::from(e)))?;
-    log!("Password hashed successfully"); // Log a success message
-    println!("{} {}", "[LOG] Generated hash: ".yellow(), password_hash); // Print the hashed password
+    log!("Password hashed successfully");
+    println!("{} {}", "[LOG] Generated hash: ".yellow(), password_hash);
 
-    // Convert the hashed password to a string
     let binding = password_hash.to_string();
-    
-    // Parse the hashed password
+
     let parsed_hash =
         PasswordHash::new(&binding).map_err(|e| MyError::Argon(ArgonError::from(e)))?;
 
-    // Verify the password
-    if argon2
-        .verify_password(password_trimmed.as_bytes(), &parsed_hash)
-        .is_ok()
-    {
-        log!("Password verified successfully"); // Log a success message
-        password.zeroize(); // Securely erase the password
+    if argon2.verify_password(password_bytes, &parsed_hash).is_ok() {
+        log!("Password verified successfully");
+        password.zeroize();
         Ok(())
     } else {
-        error!("Password verification failed"); // Log an error message
-        Err(Box::new(MyError::VerificationFailed)) // Return an error
+        error!("Password verification failed");
+        Err(Box::new(MyError::VerificationFailed))
     }
 }
