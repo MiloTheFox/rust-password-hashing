@@ -8,3 +8,6 @@ edition = "2021"
 [dependencies]
 argon2 = "*"
 rand_core = { version = "*", features = ["getrandom"] }
+colored = "*"
+thiserror = "*"
+zeroize = "*"
