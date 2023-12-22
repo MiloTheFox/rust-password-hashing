@@ -40,7 +40,7 @@ macro_rules! error {
 fn main() -> Result<(), Box<dyn Error>> {
     let mut password = String::new();
     print!("Please enter your password: ");
-    io::stdout().flush()?; // flush it to the screen
+    io::stdout().flush()?;
 
     io::stdin().read_line(&mut password)?;
     let password = password.trim().as_bytes();
@@ -51,17 +51,14 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let salt = SaltString::generate(&mut OsRng);
 
-    // Argon2 with default params (Argon2id v19)
     let argon2 = Argon2::default();
 
-    // Hash password to PHC string ($argon2id$v=19$...)
     let password_hash = argon2
         .hash_password(password, salt.as_salt())
         .map_err(ArgonError)?;
     log!("Password hashed successfully");
     eprintln!("[LOG] Generated hash: {}", password_hash);
 
-    // Verify password against PHC string.
     let binding = password_hash.to_string();
     let parsed_hash = PasswordHash::new(&binding).map_err(ArgonError)?;
 
