@@ -4,7 +4,6 @@ use argon2::{
     Algorithm, Argon2, ParamsBuilder,
 };
 
-use num_cpus;
 use rand_core::OsRng; // For generating random numbers
 use std::error::Error;
 use std::io::{self, Write}; // For input/output operations
@@ -84,9 +83,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     let salt = SaltString::generate(&mut OsRng);
 
     let params = ParamsBuilder::new()
-        .m_cost(128)
-        .t_cost(16)
-        .p_cost(num_cpus::get().try_into().unwrap())
+        .m_cost(19)
+        .t_cost(2)
+        .p_cost(1)
         .output_len(32)
         .build();
 
