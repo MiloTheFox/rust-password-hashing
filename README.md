@@ -2,7 +2,9 @@
 This repository features an implementation of password hashing in Rust using the Argon2 algorithm. For those who are not familiar with this topic, password hashing is a way of securing user passwords by transforming them into a different format, which is then stored instead of the original password. For more information on this topic e.g. how it works and why it is so important for cyber-security, feel free to refer to these resources:
 
 [Password Storage Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html)
+
 [What Salting has to do with Password Security](https://voleer.com/blog/what-salting-has-to-do-with-password-security)
+
 [How does Hashing and Salting work?](https://www.tokenex.com/blog/ab-hashing-vs-salting-how-do-these-functions-work/)
 
 ### Keep in mind that this is a basic implementation and will most likely get updates every once in a while to maintain its performance and stability.
