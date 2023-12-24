@@ -1,55 +1,47 @@
 // Importing necessary modules and functions
 use argon2::{
-    password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
+    password_hash::{PasswordHasher, PasswordVerifier, SaltString},
     Algorithm, Argon2, ParamsBuilder,
 };
-
 use rand_core::OsRng; // For generating random numbers
-use std::error::Error;
-use std::io::{self, Write}; // For input/output operations
-use std::{error, fmt}; // For formatting
-use thiserror::Error; // For handling errors
 use zeroize::Zeroize; // For securely erasing sensitive data
+
+use rpassword::prompt_password; // Used to hide the password input
+
+use std::error::Error;
+use std::fmt;
+
+// Import colored module for colored output
+use colored::Colorize;
+
 
 // Define a new error type for Argon2 errors
 #[derive(Debug)]
 pub struct ArgonError(pub argon2::password_hash::Error);
 
-// Implement the Display trait for ArgonError
+// Define a new error type for our application
+#[derive(Debug)]
+pub enum MyError {
+    Argon(ArgonError),
+    VerificationFailed,
+}
+
 impl fmt::Display for ArgonError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.0)
     }
 }
 
-// Implement the Error trait for ArgonError
-impl error::Error for ArgonError {}
-
-// Implement From trait for converting argon2::password_hash::Error to ArgonError
-impl From<argon2::password_hash::Error> for ArgonError {
-    fn from(err: argon2::password_hash::Error) -> ArgonError {
-        ArgonError(err)
+impl fmt::Display for MyError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            MyError::Argon(e) => write!(f, "Argon2 error: {}", e),
+            MyError::VerificationFailed => write!(f, "Password verification failed"),
+        }
     }
 }
 
-// Implement From trait for converting argon2::Error to ArgonError
-impl From<argon2::Error> for ArgonError {
-    fn from(err: argon2::Error) -> ArgonError {
-        ArgonError(argon2::password_hash::Error::from(err))
-    }
-}
-
-// Define a new error type for our application
-#[derive(Debug, Error)]
-pub enum MyError {
-    #[error("Argon2 error: {0}")]
-    Argon(ArgonError),
-    #[error("Password verification failed")]
-    VerificationFailed,
-}
-
-// Import colored module for colored output
-use colored::Colorize;
+impl Error for MyError {}
 
 // Define a macro for logging messages
 macro_rules! log {
@@ -66,12 +58,8 @@ macro_rules! error {
 }
 
 // Main function
-fn main() -> Result<(), Box<dyn Error>> {
-    let mut password = String::new();
-    print!("Please enter your password: ");
-    io::stdout().flush()?;
-
-    io::stdin().read_line(&mut password)?;
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let mut password = prompt_password("Please enter your password: ")?;
     let password_trimmed = password.trim();
     if password_trimmed.is_empty() {
         error!("You have to provide a password!");
@@ -83,30 +71,26 @@ fn main() -> Result<(), Box<dyn Error>> {
     let salt = SaltString::generate(&mut OsRng);
 
     let params = ParamsBuilder::new()
-        .m_cost(19)
-        .t_cost(2)
-        .p_cost(1)
-        .output_len(32)
-        .build();
+        .m_cost(19) // reduced memory cost
+        .t_cost(2) // reduced time cost
+        .p_cost(1) // reduced parallelism cost
+        .output_len(32) // reduced output length
+        .build()
+        .expect("Failed to build Argon2 parameters");
 
-    let argon2 = Argon2::new(
-        Algorithm::Argon2id,
-        argon2::Version::V0x13,
-        params.map_err(|e| MyError::Argon(ArgonError::from(e)))?,
-    );
+    let argon2 = Argon2::new(Algorithm::Argon2id, argon2::Version::V0x13, params);
 
     let password_hash = argon2
         .hash_password(password_bytes, salt.as_salt())
-        .map_err(|e| MyError::Argon(ArgonError::from(e)))?;
+        .expect("Failed to hash password");
     log!("Password hashed successfully");
     println!("{} {}", "[LOG] Generated hash: ".yellow(), password_hash);
 
-    let binding = password_hash.to_string();
-
-    let parsed_hash =
-        PasswordHash::new(&binding).map_err(|e| MyError::Argon(ArgonError::from(e)))?;
-
-    if argon2.verify_password(password_bytes, &parsed_hash).is_ok() {
+    // Verify the password
+    if argon2
+        .verify_password(password_bytes, &password_hash)
+        .is_ok()
+    {
         log!("Password verified successfully");
         password.zeroize();
         Ok(())
