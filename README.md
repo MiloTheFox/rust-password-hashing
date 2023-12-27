@@ -66,12 +66,12 @@ Here are the necessary steps to get the Rust Compiler for the different Operatin
 
 To actually run the code, 
 
-1. **Clone the Repository**: First, you need to clone the repository to your local machine. You can do this using Git with the following command:
+2. **Clone the Repository**: First, you need to clone the repository to your local machine. You can do this using Git with the following command:
    ```shell
    git clone https://github.com/LunaTheFox20/rust-password-hashing.git
    ```
 
-2. **Navigate to the Project Directory**: Use the `cd` (`chdir` if you use Linux or MacOS) command to navigate to the directory containing the project files:
+3. **Navigate to the Project Directory**: Use the `cd` (`chdir` if you use Linux or MacOS) command to navigate to the directory containing the project files:
 - Windows:
   
    ```shell
