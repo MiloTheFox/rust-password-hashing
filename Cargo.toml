@@ -1,7 +1,9 @@
+cargo-features = ["edition2024"]
+
 [package]
 name = "pw-hashing-rust"
 version = "0.2.0"
-edition = "2023"
+edition = "2024"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -9,6 +11,10 @@ edition = "2023"
 argon2 = "*"
 rand_core = { version = "*", features = ["getrandom"] }
 colored = "*"
-thiserror = "*"
 zeroize = "*"
 rpassword = "*"
+
+[profile.release]
+opt-level = 3
+debug = false
+lto = true
