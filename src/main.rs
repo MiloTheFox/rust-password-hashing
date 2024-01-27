@@ -40,6 +40,7 @@ fn main() {
         password.zeroize();
         eprintln!("{}", "[LOG] Password verified successfully".green());
     } else {
+        password.zeroize();
         eprintln!("{}", "[ERROR] Password verification failed".bold().red());
     }
 }
