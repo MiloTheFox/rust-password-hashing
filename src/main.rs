@@ -8,27 +8,27 @@ use rpassword::prompt_password;
 use zeroize::Zeroize;
 
 fn main() {
-    let mut password = prompt_password("Please enter your password: ")
-        .unwrap()
-        .trim()
-        .to_string();
+    let mut password =
+        prompt_password("Please enter your password: ").expect("Failed to read password");
     if password.is_empty() {
         eprintln!("{}", "[ERROR] You have to provide a password!".bold().red());
         return;
     }
 
-    let salt = SaltString::generate(&mut OsRng);
     let params = ParamsBuilder::default()
-        .m_cost(19)
-        .t_cost(2)
-        .p_cost(1)
+        .m_cost(32767)
+        .t_cost(4)
+        .p_cost(8)
         .output_len(32)
         .build()
-        .unwrap();
+        .expect("Failed to build params");
+
+    let salt = SaltString::generate(&mut OsRng);
     let argon2 = Argon2::new(Algorithm::Argon2id, argon2::Version::V0x13, params);
+
     let password_hash = argon2
-        .hash_password(password.as_bytes(), salt.as_salt())
-        .unwrap();
+        .hash_password(password.as_bytes(), &salt)
+        .expect("Failed to hash password");
 
     eprintln!("{}", "[LOG] Password hashed successfully".green());
     println!("{} {}", "[LOG] Generated hash: ".yellow(), password_hash);
