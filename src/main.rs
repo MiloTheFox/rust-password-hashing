@@ -35,8 +35,9 @@ async fn main() {
     // Hash the password using the Argon2 hasher and the salt to create a secure representation of the password.
     // Use tokio::task::spawn_blocking to run the blocking code in a separate thread pool.
     let password_hash = tokio::task::spawn_blocking(move || {
+        let salt_clone = salt.clone(); // Assign the cloned salt to a variable
         argon2
-            .hash_password(password.as_bytes(), &salt.clone()) // Clone the salt
+            .hash_password(password.as_bytes(), &salt_clone) // Use the variable instead of the temporary value
             .expect("Failed to hash password")
     })
     .await
