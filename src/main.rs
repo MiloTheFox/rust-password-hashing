@@ -36,7 +36,7 @@ async fn main() {
     // Use tokio::task::spawn_blocking to run the blocking code in a separate thread pool.
     let password_hash = tokio::task::spawn_blocking(move || {
         argon2
-            .hash_password(password.as_bytes(), &salt)
+            .hash_password(password.as_bytes(), &salt.clone()) // Clone the salt
             .expect("Failed to hash password")
     })
     .await
@@ -48,9 +48,8 @@ async fn main() {
 
     // Verify the password against the hash using the Argon2 verifier to ensure the password is correct.
     // Use tokio::task::spawn_blocking to run the blocking code in a separate thread pool.
-    let password_clone = password.clone();
     let verify_result = tokio::task::spawn_blocking(move || {
-        argon2.verify_password(password_clone.as_bytes(), &password_hash)
+        argon2.clone().verify_password(password.clone().as_bytes(), &password_hash) // Clone the password and the argon2
     })
     .await
     .unwrap();
