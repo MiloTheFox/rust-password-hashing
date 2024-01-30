@@ -7,7 +7,8 @@ use rand_core::OsRng;
 use rpassword::prompt_password;
 use zeroize::Zeroize;
 
-fn main() {
+#[tokio::main(flavor = "multi_thread", worker_threads = 10)]
+async fn main() {
     // Prompt the user to enter a password using the rpassword crate, which hides the input from the screen for security reasons.
     let mut password =
         prompt_password("Please enter your password: ").expect("Failed to read password");
@@ -32,19 +33,29 @@ fn main() {
     let argon2 = Argon2::new(Algorithm::Argon2id, argon2::Version::V0x13, params);
 
     // Hash the password using the Argon2 hasher and the salt to create a secure representation of the password.
-    let password_hash = argon2
-        .hash_password(password.as_bytes(), &salt)
-        .expect("Failed to hash password");
+    // Use tokio::task::spawn_blocking to run the blocking code in a separate thread pool.
+    let password_hash = tokio::task::spawn_blocking(move || {
+        argon2
+            .hash_password(password.as_bytes(), &salt)
+            .expect("Failed to hash password")
+    })
+    .await
+    .unwrap();
 
     // Print a success message and the generated hash.
     println!("{}", "[LOG] Password hashed successfully".green());
     println!("{} {}", "[LOG] Generated hash: ".yellow(), password_hash);
 
     // Verify the password against the hash using the Argon2 verifier to ensure the password is correct.
-    if argon2
-        .verify_password(password.as_bytes(), &password_hash)
-        .is_ok()
-    {
+    // Use tokio::task::spawn_blocking to run the blocking code in a separate thread pool.
+    let password_clone = password.clone();
+    let verify_result = tokio::task::spawn_blocking(move || {
+        argon2.verify_password(password_clone.as_bytes(), &password_hash)
+    })
+    .await
+    .unwrap();
+
+    if verify_result.is_ok() {
         // Clear the password from memory using the Zeroize crate to prevent accidental leakage or retrieval of the sensitive password information.
         password.zeroize();
         // Print a success message.
