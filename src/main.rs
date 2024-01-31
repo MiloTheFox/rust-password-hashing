@@ -7,6 +7,8 @@ use rand_core::OsRng;
 use rpassword::prompt_password;
 use zeroize::Zeroize;
 
+const SALT_STRING: SaltString = SaltString::generate(&mut OsRng);
+
 #[tokio::main(flavor = "multi_thread", worker_threads = 10)]
 async fn main() {
     let mut password =
@@ -24,8 +26,8 @@ async fn main() {
         .build()
         .expect("Failed to build params");
 
-    let salt_string = SaltString::generate(&mut OsRng);
-    let salt = salt_string.as_salt();
+    let salt = SALT_STRING.as_salt();
+
 
     let argon2 = Argon2::new(Algorithm::Argon2id, argon2::Version::V0x13, params);
 
