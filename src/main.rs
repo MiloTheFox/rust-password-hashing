@@ -23,7 +23,7 @@ fn main() {
     let params = Params::new(MEMORY_COST, TIME_COST, PARALLELISM, None).expect("Failed to build params");
 
     let salt = SaltString::generate(&mut OsRng);
-    let argon2 = Argon2::new(params);
+    let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
 
     let password_hash = argon2.hash_password(password.as_bytes(), &salt).expect("Failed to hash password");
 
