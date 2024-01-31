@@ -1,6 +1,6 @@
 use argon2::{
     password_hash::{PasswordHasher, PasswordVerifier, SaltString},
-    Algorithm, Argon2, Params, PasswordHash, Version,
+    Algorithm, Argon2, Params, Version,
 };
 use colored::Colorize;
 use rand_core::OsRng;
