@@ -24,15 +24,13 @@ async fn main() {
         .build()
         .expect("Failed to build params");
 
-    let salt = SaltString::generate(&mut OsRng);
+    let salt = SaltString::generate(&mut OsRng).into_owned();
     let argon2 = Argon2::new(Algorithm::Argon2id, argon2::Version::V0x13, params);
-
-    let salt_clone = salt.clone(); // Clone the salt outside of the closure
 
     let password_hash = {
         let password_clone = password.clone(); // Clone the password
         argon2
-            .hash_password(password_clone.as_bytes(), &salt_clone) // Use the cloned variables
+            .hash_password(password_clone.as_bytes(), &salt)
             .expect("Failed to hash password")
     };
 
