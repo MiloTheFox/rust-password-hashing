@@ -9,16 +9,13 @@ use zeroize::Zeroize;
 
 #[tokio::main(flavor = "multi_thread", worker_threads = 10)]
 async fn main() {
-    // Prompt the user to enter a password using the rpassword crate, which hides the input from the screen for security reasons.
     let mut password =
         prompt_password("Please enter your password: ").expect("Failed to read password");
-    // Check if the password is empty and exit the program if so.
     if password.is_empty() {
         eprintln!("{}", "[ERROR] You have to provide a password!".bold().red());
         return;
     }
 
-    // Specify the parameters for the Argon2 password hashing algorithm, which control the computational cost of hashing to ensure password security.
     let params = ParamsBuilder::default()
         .m_cost(32767) // Memory cost in KiB
         .t_cost(4) // Number of iterations
@@ -27,45 +24,35 @@ async fn main() {
         .build()
         .expect("Failed to build params");
 
-    // Generate a random salt string using the OsRng crate. The salt is used to uniquely identify the password hash and protect against attacks that try to guess the password from a list of common hashes.
     let salt = SaltString::generate(&mut OsRng);
-    // Create an instance of the Argon2 hasher with the specified parameters.
     let argon2 = Argon2::new(Algorithm::Argon2id, argon2::Version::V0x13, params);
 
-    // Hash the password using the Argon2 hasher and the salt to create a secure representation of the password.
-    // Use tokio::task::spawn_blocking to run the blocking code in a separate thread pool.
-    let password_hash = tokio::task::spawn_blocking(move || {
-        let salt_clone = salt.clone(); // Assign the cloned salt to a variable
+    let password_hash = {
+        let salt_clone = salt.clone(); // Move salt_clone outside of the closure
         let password_clone = password.clone(); // Clone the password
         argon2
             .hash_password(password_clone.as_bytes(), &salt_clone) // Use the cloned variables
             .expect("Failed to hash password")
-    })
-    .await
-    .unwrap();
+    };
 
-    // Print a success message and the generated hash.
     println!("{}", "[LOG] Password hashed successfully".green());
     println!("{} {}", "[LOG] Generated hash: ".yellow(), password_hash);
 
-    // Verify the password against the hash using the Argon2 verifier to ensure the password is correct.
-    // Use tokio::task::spawn_blocking to run the blocking code in a separate thread pool.
-    let verify_result = tokio::task::spawn_blocking(move || {
+    let verify_result = {
         let password_clone = password.clone(); // Clone the password
-        argon2.clone().verify_password(password_clone.as_bytes(), &password_hash) // Clone the password and the argon2
-    })
-    .await
-    .unwrap();
+        let argon2_clone = argon2.clone(); // Clone argon2
+        tokio::task::spawn_blocking(move || {
+            argon2_clone.verify_password(password_clone.as_bytes(), &password_hash) // Use the cloned password and argon2
+        })
+        .await
+        .unwrap()
+    };
 
     if verify_result.is_ok() {
-        // Clear the password from memory using the Zeroize crate to prevent accidental leakage or retrieval of the sensitive password information.
         password.zeroize();
-        // Print a success message.
         eprintln!("{}", "[LOG] Password verified successfully".green());
     } else {
-        // Clear the password from memory like above.
         password.zeroize();
-        // Print an error message.
         eprintln!("{}", "[ERROR] Password verification failed".bold().red());
     }
 }
