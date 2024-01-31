@@ -20,7 +20,7 @@ fn main() {
         return;
     }
 
-    let params = Params::new(MEMORY_COST, TIME_COST, PARALLELISM, OUTPUT_LEN).expect("Failed to build params");
+    let params = Params::new(MEMORY_COST, TIME_COST, PARALLELISM, Some(OUTPUT_LEN)).expect("Failed to build params");
 
     let salt = SaltString::generate(&mut OsRng);
     let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
