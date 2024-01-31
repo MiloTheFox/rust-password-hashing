@@ -24,7 +24,9 @@ async fn main() {
         .build()
         .expect("Failed to build params");
 
-    let salt = SaltString::generate(&mut OsRng).into_salt();
+    let salt_string = SaltString::generate(&mut OsRng);
+    let salt = salt_string.as_salt();
+
     let argon2 = Argon2::new(Algorithm::Argon2id, argon2::Version::V0x13, params);
 
     let password_hash = {
