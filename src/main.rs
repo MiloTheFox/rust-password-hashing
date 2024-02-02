@@ -1,40 +1,45 @@
 use argon2::{
-    password_hash::{PasswordHasher, PasswordVerifier, SaltString},
-    Algorithm, Argon2, Params, Version,
+   password_hash::{PasswordHasher, PasswordVerifier, SaltString},
+   Algorithm, Argon2, Params, Version,
 };
 use colored::Colorize;
 use rand_core::OsRng;
-use rpassword::prompt_password;
-use zeroize::Zeroize;
+use rayon::prelude::*; // import rayon prelude
+use zeroize::Zeroizing;
+use log::{info, warn};
 
-const MEMORY_COST: u32 = 32767;
-const TIME_COST: u32 = 4;
-const PARALLELISM: u32 = 8;
-const OUTPUT_LEN: usize = 32;
+const MEMORY_COST: u32 = 65534;
+const TIME_COST: u32 = 8;
+const PARALLELISM: u32 = 16;
+const OUTPUT_LEN: usize = 64;
 
-fn main() {
-    let mut password = prompt_password("Please enter your password: ").expect("Failed to read password");
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+   // Generate a single salt for all password hashes
+   let salt = SaltString::generate(&mut OsRng);
 
-    if password.is_empty() {
-        eprintln!("{}", "[ERROR] You have to provide a password!".bold().red());
-        return;
-    }
+   // Create a vector of passwords to hash
+   let passwords = Zeroizing::new(vec![
+       "secret",
+       "Pa$$word!23",
+       "123456",
+       "letmein",
+       "qwerty",
+   ]);
 
-    let params = Params::new(MEMORY_COST, TIME_COST, PARALLELISM, Some(OUTPUT_LEN)).expect("Failed to build params");
+   let params = Params::new(MEMORY_COST, TIME_COST, PARALLELISM, Some(OUTPUT_LEN))?;
+   let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params)?;
 
-    let salt = SaltString::generate(&mut OsRng);
-    let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
+   // Use rayon to hash the passwords in parallel
+   let hashes: Vec<_> = passwords
+       .into_par_iter()
+       .map(|password| argon2.hash_password(password.as_bytes(), &salt))
+       .collect_into_vec();
 
-    let password_hash = argon2.hash_password(password.as_bytes(), &salt).expect("Failed to hash password");
+   // Log the generated hashes (outside the parallel loop)
+   for hash in &hashes {
+       info!("{} {:?}", "[LOG] Generated hash: ".yellow(), hash?);
+   }
 
-    println!("{}", "[LOG] Password hashed successfully".green());
-    println!("{} {}", "[LOG] Generated hash: ".yellow(), password_hash);
-
-    if argon2.verify_password(password.as_bytes(), &password_hash).is_ok() {
-        password.zeroize();
-        eprintln!("{}", "[LOG] Password verified successfully".green());
-    } else {
-        password.zeroize();
-        eprintln!("{}", "[ERROR] Password verification failed".bold().red());
-    }
+   info!("{}", "[LOG] Passwords hashed successfully".green());
+   Ok(())
 }
