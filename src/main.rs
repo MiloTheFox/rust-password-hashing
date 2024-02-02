@@ -19,11 +19,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
    // Create a vector of passwords to hash
    let passwords = Zeroizing::new(vec![
-       "secret",
-       "Pa$$word!23",
-       "123456",
-       "letmein",
-       "qwerty",
+       "YourFirstPassword",
+       "YourSecondPassword",
+       "Eeeee",
+       "4thPassword",
+       // etc.
    ]);
 
    let params = Params::new(MEMORY_COST, TIME_COST, PARALLELISM, Some(OUTPUT_LEN))?;
