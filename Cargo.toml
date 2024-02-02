@@ -13,7 +13,9 @@ rand_core = { version = "*", features = ["getrandom"] }
 colored = "*"
 zeroize = "*"
 rpassword = "*"
+rayon = "*"
 log = "*"
+env_logger = "*"
 
 [profile.release]
 opt-level = 3
