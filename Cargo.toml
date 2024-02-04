@@ -17,6 +17,7 @@ rpassword = "*"
 tokio = { version = "*", features = ["full"]}
 log = "*"
 env_logger = "*"
+rand = "*"
 
 [profile.release]
 opt-level = 3
