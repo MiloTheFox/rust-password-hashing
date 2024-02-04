@@ -1,39 +1,34 @@
 use argon2::{password_hash::SaltString, Algorithm, Argon2, Params, PasswordHasher, Version};
 use colored::Colorize;
-use log::error;
+use futures;
 use rand_core::OsRng;
-use rayon::prelude::*; // import rayon prelude
-use std::error::Error;
-use std::fmt;
+use tokio::task;
 use zeroize::Zeroize;
 
 #[derive(Debug)]
-struct MyError {
-    inner: argon2::password_hash::Error,
+enum MyError {
+    ArgonError(argon2::password_hash::Error),
 }
 
-impl fmt::Display for MyError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.inner)
+impl std::fmt::Display for MyError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            MyError::ArgonError(e) => write!(f, "{}", e),
+        }
     }
 }
 
-impl Error for MyError {
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
-        None
-    }
-}
+impl std::error::Error for MyError {}
 
 const MEMORY_COST: u32 = 65534;
 const TIME_COST: u32 = 8;
 const PARALLELISM: u32 = 16;
 const OUTPUT_LEN: usize = 64;
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Generate a single salt for all password hashes
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let salt = SaltString::generate(&mut OsRng);
 
-    // Create a vector of passwords to hash
     let mut passwords: Vec<String> = vec![
         "YourFirstPassword".to_string(),
         "YourSecondPassword".to_string(),
@@ -42,36 +37,39 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // etc.
     ];
 
-    let params = match Params::new(MEMORY_COST, TIME_COST, PARALLELISM, Some(OUTPUT_LEN)) {
-        Ok(params) => params,
-        Err(e) => return Err(Box::new(MyError { inner: e.into() })),
-    };
+    let params = Params::new(MEMORY_COST, TIME_COST, PARALLELISM, Some(OUTPUT_LEN))
+        .map_err(|e| MyError::ArgonError(e.into()))?;
 
     let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
 
-    // Use rayon to hash the passwords in parallel
-    let result: Result<Vec<_>, _> = passwords
-        .par_iter()
-        .map(|password| argon2.hash_password(password.as_bytes(), &salt))
-        .collect();
+    let tasks = passwords.clone().into_iter().map(|password| {
+        let argon2 = argon2.clone();
+        let salt = salt.clone();
+        task::spawn(async move {
+            match argon2.hash_password(password.as_bytes(), &salt) {
+                Ok(hash) => Ok(hash.to_string()), // use debug formatting here
+                Err(e) => Err(e),
+            }
+        })
+    });
 
-    // Zeroize passwords after use
+    let results: Result<Vec<_>, _> = futures::future::join_all(tasks).await.into_iter().collect();
+
     passwords.zeroize();
 
-    // Handle the result of the parallel operation
-    match result {
+    match results {
         Ok(hashes) => {
-            // Log the generated hashes (outside the parallel loop)
-            for hash in &hashes {
-                println!("Hashed password: {}", hash.to_string());
+            for hash in hashes {
+                match &hash {
+                    Ok(h) => println!("Hashed password: {}", h),
+                    Err(e) => println!("Failed to hash password: {:?}", e),
+                }
             }
-
             println!("{}", "[LOG] Passwords hashed successfully".green());
-            Ok(())
         }
         Err(e) => {
-            error!("Failed to generate hash: {}", e);
-            Err(Box::new(MyError { inner: e.into() }))
+            println!("Failed to hash password: {:?}", e);
         }
     }
+    Ok(())
 }
