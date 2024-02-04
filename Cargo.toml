@@ -12,8 +12,9 @@ argon2 = "*"
 rand_core = { version = "*", features = ["getrandom"] }
 colored = "*"
 zeroize = "*"
+futures = "*"
 rpassword = "*"
-rayon = "*"
+tokio = { version = "*", features = ["full"]}
 log = "*"
 env_logger = "*"
 
