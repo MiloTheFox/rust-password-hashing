@@ -33,9 +33,6 @@ const OUTPUT_LEN: usize = 64;
 // Main function
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    // Generate a new salt string
-    let salt = SaltString::generate(&mut OsRng);
-
     // Define a vector of passwords
     let mut passwords: Vec<String> = vec![
         "YourFirstPassword".to_string(),
@@ -55,7 +52,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // Create tasks for each password to hash
     let tasks = passwords.clone().into_iter().map(|password| {
         let argon2 = argon2.clone();
-        let salt = salt.clone();
+        let salt = SaltString::generate(&mut OsRng);
         task::spawn(async move {
             // Hash the password and handle any errors
             match argon2.hash_password(password.as_bytes(), &salt) {
