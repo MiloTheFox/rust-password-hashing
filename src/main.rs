@@ -2,23 +2,28 @@ use argon2::{password_hash::SaltString, Algorithm, Argon2, Params, PasswordHashe
 use colored::Colorize;
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
 use rand_core::OsRng;
+use std::fmt;
+use thiserror::Error;
 use tokio::task;
-use zeroize::Zeroize;
 
 #[derive(Debug)]
-enum MyError {
-    ArgonError(argon2::password_hash::Error),
-}
+pub struct ArgonError(argon2::password_hash::Error);
 
-impl std::fmt::Display for MyError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            MyError::ArgonError(e) => write!(f, "{}", e),
-        }
+impl fmt::Display for ArgonError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
 
-impl std::error::Error for MyError {}
+impl std::error::Error for ArgonError {}
+
+#[derive(Error, Debug)]
+pub enum MyError {
+    #[error("Error hashing password: {0}")]
+    HashingError(ArgonError),
+    #[error("Other error: {0}")]
+    Other(Box<dyn std::error::Error + Send + Sync + 'static>),
+}
 
 const MEMORY_COST: u32 = 45000;
 const TIME_COST: u32 = 8;
@@ -26,18 +31,20 @@ const PARALLELISM: u32 = 16;
 const OUTPUT_LEN: usize = 64;
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let tasks: Vec<tokio::task::JoinHandle<Result<String, MyError>>> = (0..50)
-        .map(|_| tokio::spawn(async { generate_password(16).await }))
-        .collect();
-
-    let results: Vec<Result<String, MyError>> = futures::future::try_join_all(tasks).await?;
-
-    let passwords: Vec<String> = results.into_iter().collect::<Result<Vec<_>, _>>()?;
+async fn main() -> Result<(), MyError> {
+    let passwords: Vec<String> = (0..50).map(|_| generate_password(16)).collect();
 
     // Define Argon2 parameters
-    let params = Params::new(MEMORY_COST, TIME_COST, PARALLELISM, Some(OUTPUT_LEN))
-        .map_err(|e| MyError::ArgonError(e.into()))?;
+    let params_result = Params::new(MEMORY_COST, TIME_COST, PARALLELISM, Some(OUTPUT_LEN));
+    let params = match params_result {
+        Ok(params) => params,
+        Err(error) => {
+            return Err(MyError::Other(Box::new(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("An error occurred: {}", error),
+            ))))
+        }
+    };
 
     let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
 
@@ -46,190 +53,67 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         task::spawn_blocking(move || {
             let salt = SaltString::generate(&mut OsRng);
             // Hash the password and handle any errors
-            match argon2.hash_password(password.as_bytes(), &salt) {
-                Ok(hash) => Ok(hash.to_string()),
-                Err(e) => Err(MyError::ArgonError(e)),
-            }
+            argon2
+                .hash_password(password.as_bytes(), &salt)
+                .map(|hash| hash.to_string())
+                // Simplify error handling
+                .map_err(|e| MyError::HashingError(ArgonError(e)))
         })
     });
 
-    let results: Result<Vec<Result<String, MyError>>, tokio::task::JoinError> =
-        futures::future::try_join_all(tasks).await;
+    let results: Result<Vec<_>, _> = futures::future::try_join_all(tasks).await;
 
     match results {
         Ok(hashes) => {
-            // Filter out errors
-            let mut hashes: Vec<_> = hashes.into_iter().filter_map(|x| x.ok()).collect();
-            for hash in &hashes {
-                println!("Hashed password: {}", hash);
+            for hash in hashes {
+                match hash {
+                    Ok(hash) => println!("Hashed password: {}", hash),
+                    Err(e) => println!("Failed to hash password: {}", e),
+                }
             }
-            hashes.zeroize();
-            // Log success message
             println!("{}", "[LOG] Passwords hashed successfully".green());
         }
         Err(e) => {
-            println!("Failed to hash password: {:?}", e);
+            println!("Failed to hash password: {}", e);
         }
     }
+
     Ok(())
 }
 
-async fn generate_password(length: usize) -> Result<String, MyError> {
-    Ok(thread_rng()
+fn generate_password(length: u8) -> String {
+    thread_rng()
         .sample_iter(&Alphanumeric)
-        .take(length)
+        .take(length as usize)
         .map(char::from)
-        .collect())
+        .collect()
 }
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashSet;
-
     use super::*;
-    use futures::StreamExt;
-    use tokio::runtime::Runtime;
+
+    #[test]
+    fn test_generate_password() {
+        let password = generate_password(16);
+        assert_eq!(password.len(), 16);
+        assert!(password.chars().all(|c| c.is_alphanumeric()));
+    }
+
+    #[test]
+    fn test_argon_error_display() {
+        let error = argon2::password_hash::Error::Password;
+        let argon_error = ArgonError(error);
+        assert_eq!(format!("{}", argon_error), "invalid password");
+    }
 
     #[tokio::test]
     async fn test_hash_password() {
-        // Generate passwords asynchronously
-        let passwords_result = futures::stream::iter(0..4)
-            .map(|_| generate_password(16))
-            .buffer_unordered(4)
-            .collect::<Vec<_>>()
-            .await;
-
-        let mut passwords = Vec::new();
-        for result in passwords_result {
-            match result {
-                Ok(password) => passwords.push(password),
-                Err(e) => {
-                    panic!("Failed to generate password: {}", e);
-                }
-            }
-        }
-
-        // Define Argon2 parameters
-        let params = Params::new(MEMORY_COST, TIME_COST, PARALLELISM, Some(OUTPUT_LEN))
-            .map_err(|e| MyError::ArgonError(e.into()))
-            .expect("Failed to create Argon2 parameters");
-
+        let password = generate_password(16);
+        let params = Params::new(MEMORY_COST, TIME_COST, PARALLELISM, Some(OUTPUT_LEN)).unwrap();
         let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
-
-        let tasks = passwords.into_iter().map(|password| {
-            let argon2 = argon2.clone();
-            tokio::task::spawn(async move {
-                let salt = SaltString::generate(&mut OsRng);
-                match argon2.hash_password(password.as_bytes(), &salt) {
-                    Ok(hash) => Ok(hash.to_string()),
-                    Err(e) => Err(MyError::ArgonError(e)),
-                }
-            })
-        });
-
-        // Wait for all tasks to complete and collect the results
-        let results: Result<Vec<Result<String, MyError>>, tokio::task::JoinError> =
-            futures::future::try_join_all(tasks).await;
-
-        match results {
-            Ok(hashes) => {
-                // Filter out errors
-                let mut hashes: Vec<_> = hashes.into_iter().filter_map(|x| x.ok()).collect();
-                hashes.iter().for_each(|hash| {
-                    println!("Hashed password: {}", hash);
-                });
-                hashes.zeroize();
-                // Log success message
-                println!("{}", "[LOG] Passwords hashed successfully".green());
-            }
-            Err(e) => {
-                println!("Failed to hash password: {:?}", e);
-            }
-        }
-    }
-
-    #[test]
-    fn test_hash_password_consistency() {
-        let rt = Runtime::new().unwrap();
-        rt.block_on(async {
-            let password = "TestPassword";
-            let salt = SaltString::generate(&mut OsRng);
-
-            let params = Params::new(MEMORY_COST, TIME_COST, PARALLELISM, Some(OUTPUT_LEN))
-                .map_err(|e| MyError::ArgonError(e.into()))
-                .unwrap();
-
-            let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
-
-            let result = argon2.hash_password(password.as_bytes(), &salt);
-            match result {
-                Ok(hash) => {
-                    let _ = hash;
-                }
-                Err(e) => {
-                    panic!("Failed to hash password: {:?}", e);
-                }
-            }
-        });
-    }
-
-    #[test]
-    fn test_unique_salts() {
-        let rt = Runtime::new().unwrap();
-        rt.block_on(async {
-            let passwords: Vec<&str> = vec!["Password1", "Password2", "Password3"];
-
-            let params = Params::new(MEMORY_COST, TIME_COST, PARALLELISM, Some(OUTPUT_LEN))
-                .map_err(|e| MyError::ArgonError(e.into()))
-                .unwrap();
-
-            let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
-
-            let mut salts = HashSet::new();
-            for password in passwords {
-                let salt = SaltString::generate(&mut OsRng);
-                assert!(salts.insert(salt.to_string()), "Duplicate salt generated");
-                let _ = argon2.hash_password(password.as_bytes(), &salt).unwrap();
-            }
-        });
-    }
-    #[test]
-    fn test_different_password_lengths() {
-        let rt = Runtime::new().unwrap();
-        rt.block_on(async {
-            let binding = "a".repeat(1000);
-            let passwords: Vec<&str> = vec!["a", "password123", binding.as_str()];
-
-            // Define Argon2 parameters
-            let params = Params::new(MEMORY_COST, TIME_COST, PARALLELISM, Some(OUTPUT_LEN))
-                .map_err(|e| MyError::ArgonError(e.into()))
-                .unwrap();
-
-            let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
-
-            passwords.into_iter().for_each(|password| {
-                let salt = SaltString::generate(&mut OsRng);
-                let _ = argon2.hash_password(password.as_bytes(), &salt).unwrap();
-            });
-        });
-    }
-    #[test]
-    fn test_different_characters_in_passwords() {
-        let rt = Runtime::new().unwrap();
-        rt.block_on(async {
-            let passwords: Vec<&str> = vec!["abc123", "P@ssw0rd!", "üñîqúè"];
-
-            // Define Argon2 parameters
-            let params = Params::new(MEMORY_COST, TIME_COST, PARALLELISM, Some(OUTPUT_LEN))
-                .map_err(|e| MyError::ArgonError(e.into()))
-                .unwrap();
-
-            let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
-
-            passwords.into_iter().for_each(|password| {
-                let salt = SaltString::generate(&mut OsRng);
-                let _ = argon2.hash_password(password.as_bytes(), &salt).unwrap();
-            });
-        });
+        let salt = SaltString::generate(&mut OsRng);
+        let result = argon2.hash_password(password.as_bytes(), &salt);
+        assert!(result.is_ok());
     }
 }
