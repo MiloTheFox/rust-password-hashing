@@ -2,7 +2,7 @@ cargo-features = ["edition2024"]
 
 [package]
 name = "pw-hashing-rust"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2024"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -16,10 +16,12 @@ futures = "*"
 rpassword = "*"
 tokio = { version = "*", features = ["full"]}
 log = "*"
-env_logger = "*"
+thiserror = "*"
 rand = "*"
+
 
 [profile.release]
 opt-level = 3
 debug = false
-lto = true
+lto = "thin"
+codegen-units = 1
