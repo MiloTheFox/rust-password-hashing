@@ -1,6 +1,8 @@
 use argon2::{password_hash::SaltString, Algorithm, Argon2, Params, PasswordHasher, Version};
 use colored::Colorize;
-use rand::{distributions::Alphanumeric, thread_rng, Rng};
+use rand::rngs::StdRng;
+use rand::SeedableRng;
+use rand::{distributions::Alphanumeric, Rng};
 use rand_core::OsRng;
 use std::fmt;
 use thiserror::Error;
@@ -19,6 +21,7 @@ impl std::error::Error for ArgonError {}
 
 #[derive(Error, Debug)]
 pub enum MyError {
+    // ... other variants
     #[error("Error hashing password: {0}")]
     HashingError(ArgonError),
     #[error("Other error: {0}")]
@@ -32,7 +35,8 @@ const OUTPUT_LEN: usize = 64;
 
 #[tokio::main]
 async fn main() -> Result<(), MyError> {
-    let passwords: Vec<String> = (0..50).map(|_| generate_password(16)).collect();
+    let passwords: Vec<String> =
+        futures::future::join_all((0..50).map(|_| generate_password(16))).await;
 
     // Define Argon2 parameters
     let params_result = Params::new(MEMORY_COST, TIME_COST, PARALLELISM, Some(OUTPUT_LEN));
@@ -71,6 +75,7 @@ async fn main() -> Result<(), MyError> {
                     Err(e) => println!("Failed to hash password: {}", e),
                 }
             }
+            // Log success message
             println!("{}", "[LOG] Passwords hashed successfully".green());
         }
         Err(e) => {
@@ -81,23 +86,27 @@ async fn main() -> Result<(), MyError> {
     Ok(())
 }
 
-fn generate_password(length: u8) -> String {
-    thread_rng()
-        .sample_iter(&Alphanumeric)
-        .take(length as usize)
-        .map(char::from)
-        .collect()
+async fn generate_password(length: u8) -> String {
+    let rng = StdRng::from_entropy(); // create a new StdRng
+    task::spawn(async move {
+        rng.sample_iter(&Alphanumeric)
+            .take(length as usize)
+            .map(char::from)
+            .collect::<String>()
+    })
+    .await
+    .unwrap()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_generate_password() {
-        let password = generate_password(16);
-        assert_eq!(password.len(), 16);
-        assert!(password.chars().all(|c| c.is_alphanumeric()));
+    #[tokio::test]
+    async fn test_generate_password() {
+        let password_future = generate_password(16);
+        let password = password_future.await;
+        assert!(password.len() == 16 && password.chars().all(|c| c.is_alphanumeric()));
     }
 
     #[test]
@@ -113,7 +122,7 @@ mod tests {
         let params = Params::new(MEMORY_COST, TIME_COST, PARALLELISM, Some(OUTPUT_LEN)).unwrap();
         let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
         let salt = SaltString::generate(&mut OsRng);
-        let result = argon2.hash_password(password.as_bytes(), &salt);
+        let result = argon2.hash_password(password.await.as_bytes(), &salt);
         assert!(result.is_ok());
     }
 }
