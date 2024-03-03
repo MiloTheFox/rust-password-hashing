@@ -5,6 +5,7 @@ use rand::SeedableRng;
 use rand::{distributions::Alphanumeric, Rng};
 use rand_core::OsRng;
 use std::fmt;
+use std::sync::Arc;
 use thiserror::Error;
 use tokio::task;
 
@@ -50,18 +51,17 @@ async fn main() -> Result<(), MyError> {
         }
     };
 
-    let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
+    let argon2 = Arc::new(Argon2::new(Algorithm::Argon2id, Version::V0x13, params));
 
     let tasks = passwords.into_iter().map(|password| {
-        let argon2 = argon2.clone();
-        task::spawn_blocking(move || {
-            let salt = SaltString::generate(&mut OsRng);
+        let argon2 = Arc::clone(&argon2);
+        task::spawn(async move {
+            let rng = OsRng;
+            let salt = SaltString::generate(*&rng);
             // Hash the password and handle any errors
             argon2
                 .hash_password(password.as_bytes(), &salt)
                 .map(|hash| hash.to_string())
-                // Simplify error handling
-                .map_err(|e| MyError::HashingError(ArgonError(e)))
         })
     });
 
@@ -88,14 +88,10 @@ async fn main() -> Result<(), MyError> {
 
 async fn generate_password(length: u8) -> String {
     let rng = StdRng::from_entropy(); // create a new StdRng
-    task::spawn(async move {
-        rng.sample_iter(&Alphanumeric)
-            .take(length as usize)
-            .map(char::from)
-            .collect::<String>()
-    })
-    .await
-    .unwrap()
+    rng.sample_iter(&Alphanumeric)
+        .take(length as usize)
+        .map(char::from)
+        .collect::<String>()
 }
 
 #[cfg(test)]
