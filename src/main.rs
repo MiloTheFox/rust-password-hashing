@@ -43,12 +43,12 @@ lazy_static! {
 
 fn main() -> Result<(), MyError> {
     let passwords = generate_passwords_using_rayon(50, 16);
+    let rng = OsRng;
 
     let results: Vec<_> = passwords
         .into_par_iter()
         .map(|(mut password, _)| {
-            let rng = OsRng;
-            let salt = SaltString::generate(*&rng);
+            let salt = SaltString::generate(rng);
             // Hash the password and handle any errors
             let result = ARGON2
                 .hash_password(password.as_bytes(), &salt)
