@@ -1,11 +1,12 @@
 use argon2::{password_hash::SaltString, Algorithm, Argon2, Params, PasswordHasher, Version};
 use colored::Colorize;
+use lazy_static::lazy_static;
 use passwords::{analyzer, scorer, PasswordGenerator};
 use rand_core::OsRng;
 use rayon::prelude::*;
 use std::fmt;
-use std::sync::Arc;
 use thiserror::Error;
+use zeroize::Zeroize;
 
 #[derive(Debug)]
 pub struct ArgonError(argon2::password_hash::Error);
@@ -32,33 +33,28 @@ const TIME_COST: u32 = 8;
 const PARALLELISM: u32 = 16;
 const OUTPUT_LEN: usize = 64;
 
+lazy_static! {
+    static ref ARGON2: Argon2<'static> = {
+        let params = Params::new(MEMORY_COST, TIME_COST, PARALLELISM, Some(OUTPUT_LEN))
+            .expect("Failed to set Argon2 parameters");
+        Argon2::new(Algorithm::Argon2id, Version::V0x13, params)
+    };
+}
+
 fn main() -> Result<(), MyError> {
     let passwords = generate_passwords_using_rayon(50, 16);
 
-    // Define Argon2 parameters
-    let params_result = Params::new(MEMORY_COST, TIME_COST, PARALLELISM, Some(OUTPUT_LEN));
-    let params = match params_result {
-        Ok(params) => params,
-        Err(error) => {
-            return Err(MyError::Other(Box::new(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!("An error occurred: {}", error),
-            ))))
-        }
-    };
-
-    let argon2 = Arc::new(Argon2::new(Algorithm::Argon2id, Version::V0x13, params));
-
     let results: Vec<_> = passwords
         .into_par_iter()
-        .map(|(password, _)| {
-            let argon2 = Arc::clone(&argon2);
+        .map(|(mut password, _)| {
             let rng = OsRng;
             let salt = SaltString::generate(*&rng);
             // Hash the password and handle any errors
-            argon2
+            let result = ARGON2
                 .hash_password(password.as_bytes(), &salt)
-                .map(|hash| hash.to_string())
+                .map(|hash| hash.to_string());
+            password.zeroize(); // Zero out the password
+            result
         })
         .collect();
 
