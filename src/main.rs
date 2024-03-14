@@ -21,7 +21,6 @@ impl std::error::Error for ArgonError {}
 
 #[derive(Error, Debug)]
 pub enum MyError {
-    // ... other variants
     #[error("Error hashing password: {0}")]
     HashingError(ArgonError),
     #[error("Other error: {0}")]
@@ -53,7 +52,7 @@ fn main() -> Result<(), MyError> {
             let result = ARGON2
                 .hash_password(password.as_bytes(), &salt)
                 .map(|hash| hash.to_string());
-            password.zeroize(); // Zero out the password
+            password.zeroize(); // Zero out the password for security reasons
             result
         })
         .collect();
@@ -102,7 +101,7 @@ mod tests {
     use super::*;
 
     const PG: PasswordGenerator = PasswordGenerator {
-        length: 16, // replace `length` with the actual length
+        length: 16,
         numbers: true,
         lowercase_letters: true,
         uppercase_letters: true,
@@ -114,7 +113,7 @@ mod tests {
 
     #[test]
     fn test_generate_password() {
-        let (password, _score) = generate_password(&PG); // handle the tuple correctly
+        let (password, _score) = generate_password(&PG);
         assert!(password.len() == 16 && password.chars().all(|c| c.is_ascii_graphic()));
     }
 
@@ -127,7 +126,7 @@ mod tests {
 
     #[test]
     fn test_hash_password() {
-        let (password, _score) = generate_password(&PG); // handle the tuple correctly
+        let (password, _score) = generate_password(&PG);
         let params = Params::new(MEMORY_COST, TIME_COST, PARALLELISM, Some(OUTPUT_LEN)).unwrap();
         let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
         let salt = SaltString::generate(&mut OsRng);
