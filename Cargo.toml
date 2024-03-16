@@ -4,6 +4,7 @@ cargo-features = ["edition2024"]
 name = "pw-hashing-rust"
 version = "0.2.3"
 edition = "2024"
+authors = ["LunaTheFox20"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
