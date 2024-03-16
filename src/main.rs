@@ -21,10 +21,13 @@ impl std::error::Error for ArgonError {}
 
 #[derive(Error, Debug)]
 pub enum MyError {
-    #[error("Error hashing password: {0}")]
-    HashingError(ArgonError),
-    #[error("Other error: {0}")]
-    Other(Box<dyn std::error::Error + Send + Sync + 'static>),
+    #[error("Error hashing password with salt {salt}: {source}")]
+    HashingError {
+        source: ArgonError,
+        salt: SaltString,
+    },
+    #[error("Failed to generate password")]
+    PasswordGenerationError,
 }
 
 const MEMORY_COST: u32 = 45000;
@@ -41,44 +44,52 @@ lazy_static! {
 }
 
 fn main() -> Result<(), MyError> {
-    let passwords = generate_passwords_using_rayon(50, 16);
+    let passwords = generate_passwords_using_rayon(50, 16)?;
     let rng = OsRng;
 
-    let results: Vec<_> = passwords
+    let results: Result<Vec<_>, _> = passwords
         .into_par_iter()
         .map(|(mut password, _)| {
             let salt = SaltString::generate(rng);
-            // Hash the password and handle any errors
             let result = ARGON2
                 .hash_password(password.as_bytes(), &salt)
+                .map_err(|source| MyError::HashingError {
+                    source: ArgonError(source),
+                    salt: salt.clone(),
+                })
                 .map(|hash| hash.to_string());
-            password.zeroize(); // Zero out the password for security reasons
+            password.zeroize();
             result
         })
         .collect();
 
-    for result in results {
-        match result {
-            Ok(hash) => println!("Hashed password: {}", hash),
-            Err(e) => println!("Failed to hash password: {}", e),
+    match results {
+        Ok(hashes) => {
+            for hash in hashes {
+                println!("Hashed password: {}", hash);
+            }
+            println!("{}", "[LOG] Passwords hashed successfully".green());
+            Ok(())
         }
+        Err(e) => Err(e),
     }
-    // Log success message
-    println!("{}", "[LOG] Passwords hashed successfully".green());
-
-    Ok(())
 }
 
 #[inline]
-fn generate_password(pg: &PasswordGenerator) -> (String, f64) {
-    let password = pg.generate_one().expect("Failed to generate password");
+fn generate_password(pg: &PasswordGenerator) -> Result<(String, f64), MyError> {
+    let password = pg
+        .generate_one()
+        .map_err(|_| MyError::PasswordGenerationError)?;
     let analyzed: analyzer::AnalyzedPassword = analyzer::analyze(&password);
     let score = scorer::score(&analyzed);
-    (password, score)
+    Ok((password, score))
 }
 
 #[inline]
-fn generate_passwords_using_rayon(num_passwords: usize, length: usize) -> Vec<(String, f64)> {
+fn generate_passwords_using_rayon(
+    num_passwords: usize,
+    length: usize,
+) -> Result<Vec<(String, f64)>, MyError> {
     let pg = PasswordGenerator {
         length,
         numbers: true,
@@ -93,7 +104,7 @@ fn generate_passwords_using_rayon(num_passwords: usize, length: usize) -> Vec<(S
     (0..num_passwords)
         .into_par_iter()
         .map(|_| generate_password(&pg))
-        .collect::<Vec<_>>() // Collect individual results
+        .collect::<Result<Vec<_>, _>>()
 }
 
 #[cfg(test)]
@@ -112,12 +123,6 @@ mod tests {
     };
 
     #[test]
-    fn test_generate_password() {
-        let (password, _score) = generate_password(&PG);
-        assert!(password.len() == 16 && password.chars().all(|c| c.is_ascii_graphic()));
-    }
-
-    #[test]
     fn test_argon_error_display() {
         let error = argon2::password_hash::Error::Password;
         let argon_error = ArgonError(error);
@@ -125,12 +130,29 @@ mod tests {
     }
 
     #[test]
+    fn test_generate_password() {
+        match generate_password(&PG) {
+            Ok((password, _score)) => {
+                assert!(password.len() == 16 && password.chars().all(|c| c.is_ascii_graphic()));
+            }
+            Err(e) => {
+                panic!("Password generation failed with error: {}", e);
+            }
+        }
+    }
+
+    #[test]
     fn test_hash_password() {
-        let (password, _score) = generate_password(&PG);
+        let (mut password, _score) = match generate_password(&PG) {
+            Ok(result) => result,
+            Err(e) => panic!("Password generation failed with error: {}", e),
+        };
+
         let params = Params::new(MEMORY_COST, TIME_COST, PARALLELISM, Some(OUTPUT_LEN)).unwrap();
         let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
         let salt = SaltString::generate(&mut OsRng);
-        let result = argon2.hash_password(password.as_bytes(), &salt);
+        let result = argon2.hash_password(&password.as_bytes(), &salt);
         assert!(result.is_ok());
+        password.zeroize();
     }
 }
