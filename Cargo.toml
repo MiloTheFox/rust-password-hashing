@@ -2,23 +2,23 @@ cargo-features = ["edition2024"]
 
 [package]
 name = "pw-hashing-rust"
-version = "0.2.2"
+version = "0.2.3"
 edition = "2024"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-argon2 = "*"
-rand_core = { version = "*", features = ["getrandom"] }
-colored = "*"
-zeroize = "*"
-futures = "*"
+argon2 = "0.5.3"
+rand_core = { version = "0.6.4", features = ["getrandom"] }
+colored = "2.1.0"
+zeroize = "1.7.0"
+futures = "0.3.30"
 passwords = { version = "3.1.16", features = ["common-password"] }
-lazy_static = "*"
-rayon = "*"
-log = "*"
-thiserror = "*"
-rand = "*"
+lazy_static = "1.4.0"
+rayon = "1.9.0"
+log = "0.4.21"
+thiserror = "1.0.58"
+rand = "0.8.5"
 
 
 [profile.release]
