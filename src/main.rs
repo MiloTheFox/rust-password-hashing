@@ -30,10 +30,10 @@ pub enum MyError {
     PasswordGenerationError,
 }
 
-const MEMORY_COST: u32 = 45000;
-const TIME_COST: u32 = 8;
-const PARALLELISM: u32 = 16;
-const OUTPUT_LEN: usize = 64;
+const MEMORY_COST: u32 = 50;
+const TIME_COST: u32 = 2;
+const PARALLELISM: u32 = 2;
+const OUTPUT_LEN: usize = 32;
 
 lazy_static! {
     static ref ARGON2: Argon2<'static> = {
