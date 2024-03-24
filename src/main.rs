@@ -44,7 +44,7 @@ lazy_static! {
 }
 
 fn main() -> Result<(), MyError> {
-    let passwords = generate_passwords_using_rayon(50, 16)?;
+    let passwords = generate_passwords_using_rayon(100, 16)?;
     let rng = OsRng;
 
     let results: Result<Vec<_>, _> = passwords
