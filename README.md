@@ -95,4 +95,4 @@ To actually run the code,
    ```
    The program will then generate a specific amount of passwords. (For the length, I recommend at least 16 characters)
 
-6. After you entered the password that you want to hash, the program will return the generated hash and verifies the hash to ensure its legitimacy.
+6. After the passwords have been generated, the program will return the generated hash.
