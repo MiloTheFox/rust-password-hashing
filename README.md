@@ -93,6 +93,6 @@ To actually run the code,
    ```bash
    cargo run --release
    ```
-   The program will prompt you to enter the password you want to hash using Argon2.
+   The program will then generate a specific amount of passwords. (For the length, I recommend at least 16 characters)
 
 6. After you entered the password that you want to hash, the program will return the generated hash and verifies the hash to ensure its legitimacy.
