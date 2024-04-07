@@ -58,7 +58,7 @@ fn main() -> Result<(), MyError> {
                     salt: salt.clone(),
                 })
                 .map(|hash| hash.to_string());
-            password.zeroize();
+            password.zeroize(); // We zeroize the passwords in order to prevent memory-based attacks
             result
         })
         .collect();
@@ -66,9 +66,12 @@ fn main() -> Result<(), MyError> {
     match results {
         Ok(hashes) => {
             for hash in hashes {
-                println!("Hashed password: {}", hash);
+                println!("Hash output: {}", hash);
             }
-            println!("{}", "[LOG] Passwords hashed successfully".green());
+            println!(
+                "{}",
+                "[LOG] All passwords have been hashed successfully".green()
+            );
             Ok(())
         }
         Err(e) => Err(e),
@@ -76,8 +79,8 @@ fn main() -> Result<(), MyError> {
 }
 
 #[inline]
-fn generate_password(pg: &PasswordGenerator) -> Result<(String, f64), MyError> {
-    let password = pg
+fn generate_password(password_gen: &PasswordGenerator) -> Result<(String, f64), MyError> {
+    let password = password_gen
         .generate_one()
         .map_err(|_| MyError::PasswordGenerationError)?;
     let analyzed: analyzer::AnalyzedPassword = analyzer::analyze(&password);
@@ -87,7 +90,7 @@ fn generate_password(pg: &PasswordGenerator) -> Result<(String, f64), MyError> {
 
 #[inline]
 fn generate_passwords_using_rayon(
-    num_passwords: usize,
+    number_of_passwords: usize,
     length: usize,
 ) -> Result<Vec<(String, f64)>, MyError> {
     let pg = PasswordGenerator {
@@ -101,7 +104,7 @@ fn generate_passwords_using_rayon(
         strict: true,
     };
 
-    (0..num_passwords)
+    (0..number_of_passwords)
         .into_par_iter()
         .map(|_| generate_password(&pg))
         .collect::<Result<Vec<_>, _>>()
@@ -111,7 +114,7 @@ fn generate_passwords_using_rayon(
 mod tests {
     use super::*;
 
-    const PG: PasswordGenerator = PasswordGenerator {
+    const PASSWORDGENERATOR: PasswordGenerator = PasswordGenerator {
         length: 16,
         numbers: true,
         lowercase_letters: true,
@@ -131,7 +134,7 @@ mod tests {
 
     #[test]
     fn test_generate_password() {
-        match generate_password(&PG) {
+        match generate_password(&PASSWORDGENERATOR) {
             Ok((password, _score)) => {
                 assert!(password.len() == 16 && password.chars().all(|c| c.is_ascii_graphic()));
             }
@@ -143,7 +146,7 @@ mod tests {
 
     #[test]
     fn test_hash_password() {
-        let (mut password, _score) = match generate_password(&PG) {
+        let (mut password, _score) = match generate_password(&PASSWORDGENERATOR) {
             Ok(result) => result,
             Err(e) => panic!("Password generation failed with error: {}", e),
         };
