@@ -1,9 +1,9 @@
 use argon2::{password_hash::SaltString, Algorithm, Argon2, Params, PasswordHasher, Version};
 use colored::Colorize;
-use lazy_static::lazy_static;
 use passwords::{analyzer, scorer, PasswordGenerator};
 use rand_core::OsRng;
 use rayon::prelude::*;
+use std::error;
 use std::fmt;
 use thiserror::Error;
 use zeroize::Zeroize;
@@ -17,7 +17,7 @@ impl fmt::Display for ArgonError {
     }
 }
 
-impl std::error::Error for ArgonError {}
+impl error::Error for ArgonError {}
 
 #[derive(Error, Debug)]
 pub enum MyError {
@@ -35,23 +35,19 @@ const TIME_COST: u32 = 2;
 const PARALLELISM: u32 = 2;
 const OUTPUT_LEN: usize = 32;
 
-lazy_static! {
-    static ref ARGON2: Argon2<'static> = {
-        let params = Params::new(MEMORY_COST, TIME_COST, PARALLELISM, Some(OUTPUT_LEN))
-            .expect("Failed to set Argon2 parameters");
-        Argon2::new(Algorithm::Argon2id, Version::V0x13, params)
-    };
-}
-
 fn main() -> Result<(), MyError> {
-    let passwords = generate_passwords_using_rayon(100, 16)?;
-    let rng = OsRng;
+    let passwords: Vec<(String, f64)> = generate_passwords_using_rayon(100, 16)?;
+    let rng: OsRng = OsRng;
+
+    let params = Params::new(MEMORY_COST, TIME_COST, PARALLELISM, Some(OUTPUT_LEN))
+        .expect("Failed to set Argon2 parameters");
+    let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
 
     let results: Result<Vec<_>, _> = passwords
         .into_par_iter()
         .map(|(mut password, _)| {
             let salt = SaltString::generate(rng);
-            let result = ARGON2
+            let result = argon2
                 .hash_password(password.as_bytes(), &salt)
                 .map_err(|source| MyError::HashingError {
                     source: ArgonError(source),
@@ -65,9 +61,9 @@ fn main() -> Result<(), MyError> {
 
     match results {
         Ok(hashes) => {
-            for hash in hashes {
-                println!("Hash output: {}", hash);
-            }
+            hashes
+                .into_par_iter()
+                .for_each(|hash| println!("Hash output: {}", hash));
             println!(
                 "{}",
                 "[LOG] All passwords have been hashed successfully".green()
@@ -84,7 +80,7 @@ fn generate_password(password_gen: &PasswordGenerator) -> Result<(String, f64), 
         .generate_one()
         .map_err(|_| MyError::PasswordGenerationError)?;
     let analyzed: analyzer::AnalyzedPassword = analyzer::analyze(&password);
-    let score = scorer::score(&analyzed);
+    let score: f64 = scorer::score(&analyzed);
     Ok((password, score))
 }
 
