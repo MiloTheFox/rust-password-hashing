@@ -2,9 +2,9 @@ cargo-features = ["edition2024"]
 
 [package]
 name = "pw-hashing-rust"
-version = "0.2.3"
+version = "0.2.4"
 edition = "2024"
-authors = ["LunaTheFox20"]
+authors = ["MiloTheFox"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -16,14 +16,14 @@ zeroize = "1.7.0"
 futures = "0.3.30"
 passwords = { version = "3.1.16", features = ["common-password"] }
 lazy_static = "1.4.0"
-rayon = "1.9.0"
+rayon = "1.10.0"
 log = "0.4.21"
 thiserror = "1.0.58"
-rand = "0.8.5"
+rand = "0.9.0-alpha.1"
 
 
 [profile.release]
 opt-level = 3
 debug = false
 lto = "thin"
-codegen-units = 1
+codegen-units = 3
