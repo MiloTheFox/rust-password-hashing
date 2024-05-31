@@ -3,58 +3,29 @@ use colored::Colorize;
 use passwords::{analyzer, scorer, PasswordGenerator};
 use rand_core::OsRng;
 use rayon::prelude::*;
-use std::error;
-use std::fmt;
-use thiserror::Error;
 use zeroize::Zeroize;
 
-#[derive(Debug)]
-pub struct ArgonError(argon2::password_hash::Error);
+mod errors;
+use errors::{ArgonError, MyError};
 
-impl fmt::Display for ArgonError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-impl error::Error for ArgonError {}
-
-#[derive(Error, Debug)]
-pub enum MyError {
-    #[error("Error hashing password with salt {salt}: {source}")]
-    HashingError {
-        source: ArgonError,
-        salt: SaltString,
-    },
-    #[error("Failed to generate password")]
-    PasswordGenerationError,
-}
-
+// Configuration Constants
 const MEMORY_COST: u32 = 50;
 const TIME_COST: u32 = 2;
 const PARALLELISM: u32 = 2;
 const OUTPUT_LEN: usize = 32;
 
-fn main() -> Result<(), MyError> {
-    let passwords: Vec<(String, f64)> = generate_passwords_using_rayon(100, 16)?;
-    let rng: OsRng = OsRng;
+type PasswordWithScore = (String, f64);
 
-    let params = Params::new(MEMORY_COST, TIME_COST, PARALLELISM, Some(OUTPUT_LEN))
-        .expect("Failed to set Argon2 parameters");
-    let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
+fn main() -> Result<(), MyError> {
+    let passwords = generate_passwords_using_rayon(16, 16)?;
+    let argon2 = create_argon2();
 
     let results: Result<Vec<_>, _> = passwords
         .into_par_iter()
         .map(|(mut password, _)| {
-            let salt = SaltString::generate(rng);
-            let result = argon2
-                .hash_password(password.as_bytes(), &salt)
-                .map_err(|source| MyError::HashingError {
-                    source: ArgonError(source),
-                    salt: salt.clone(),
-                })
-                .map(|hash| hash.to_string());
-            password.zeroize(); // We zeroize the passwords in order to prevent memory-based attacks
+            let salt = SaltString::generate(&mut OsRng);
+            let result = hash_password(&argon2, &password, &salt);
+            password.zeroize(); // Zeroize the password to prevent memory-based attacks
             result
         })
         .collect();
@@ -74,21 +45,39 @@ fn main() -> Result<(), MyError> {
     }
 }
 
-#[inline]
-fn generate_password(password_gen: &PasswordGenerator) -> Result<(String, f64), MyError> {
+fn create_argon2() -> Argon2<'static> {
+    let params = Params::new(MEMORY_COST, TIME_COST, PARALLELISM, Some(OUTPUT_LEN))
+        .expect("Failed to set Argon2 parameters");
+    Argon2::new(Algorithm::Argon2id, Version::V0x13, params)
+}
+
+fn hash_password(
+    argon2: &Argon2<'_>,
+    password: &str,
+    salt: &SaltString,
+) -> Result<String, MyError> {
+    argon2
+        .hash_password(password.as_bytes(), salt)
+        .map_err(|source| MyError::HashingError {
+            source: ArgonError(source),
+            salt: salt.clone(),
+        })
+        .map(|hash| hash.to_string())
+}
+
+fn generate_password(password_gen: &PasswordGenerator) -> Result<PasswordWithScore, MyError> {
     let password = password_gen
         .generate_one()
         .map_err(|_| MyError::PasswordGenerationError)?;
-    let analyzed: analyzer::AnalyzedPassword = analyzer::analyze(&password);
-    let score: f64 = scorer::score(&analyzed);
+    let analyzed = analyzer::analyze(&password);
+    let score = scorer::score(&analyzed);
     Ok((password, score))
 }
 
-#[inline]
 fn generate_passwords_using_rayon(
     number_of_passwords: usize,
     length: usize,
-) -> Result<Vec<(String, f64)>, MyError> {
+) -> Result<Vec<PasswordWithScore>, MyError> {
     let pg = PasswordGenerator {
         length,
         numbers: true,
@@ -123,7 +112,7 @@ mod tests {
 
     #[test]
     fn test_argon_error_display() {
-        let error = argon2::password_hash::Error::Password;
+        let error = PasswordHashError::Password;
         let argon_error = ArgonError(error);
         assert_eq!(format!("{}", argon_error), "invalid password");
     }
@@ -147,8 +136,7 @@ mod tests {
             Err(e) => panic!("Password generation failed with error: {}", e),
         };
 
-        let params = Params::new(MEMORY_COST, TIME_COST, PARALLELISM, Some(OUTPUT_LEN)).unwrap();
-        let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
+        let argon2 = create_argon2();
         let salt = SaltString::generate(&mut OsRng);
         let result = argon2.hash_password(&password.as_bytes(), &salt);
         assert!(result.is_ok());
