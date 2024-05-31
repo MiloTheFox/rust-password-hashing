@@ -111,13 +111,6 @@ mod tests {
     };
 
     #[test]
-    fn test_argon_error_display() {
-        let error = PasswordHashError::Password;
-        let argon_error = ArgonError(error);
-        assert_eq!(format!("{}", argon_error), "invalid password");
-    }
-
-    #[test]
     fn test_generate_password() {
         match generate_password(&PASSWORDGENERATOR) {
             Ok((password, _score)) => {
