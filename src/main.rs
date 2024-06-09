@@ -17,16 +17,18 @@ const OUTPUT_LEN: usize = 32;
 type PasswordWithScore = (String, f64);
 
 fn main() -> Result<(), MyError> {
-    let passwords = generate_passwords_using_rayon(16, 16)?;
     let argon2 = create_argon2();
 
-    let results: Result<Vec<_>, _> = passwords
+    // Generate and hash passwords in parallel
+    let results: Result<Vec<_>, _> = (0..16)
         .into_par_iter()
-        .map(|(mut password, _)| {
+        .map(|_| {
+            let password_gen = create_password_generator();
+            let (mut password, _) = generate_password(&password_gen)?;
             let salt = SaltString::generate(&mut OsRng);
-            let result = hash_password(&argon2, &password, &salt);
+            let hash_result = hash_password(&argon2, &password, &salt);
             password.zeroize(); // Zeroize the password to prevent memory-based attacks
-            result
+            hash_result
         })
         .collect();
 
@@ -59,10 +61,23 @@ fn hash_password(
     argon2
         .hash_password(password.as_bytes(), salt)
         .map_err(|source| MyError::HashingError {
-            source: ArgonError(source),
+            source: ArgonError::from(errors::ArgonError(source)),
             salt: salt.clone(),
         })
         .map(|hash| hash.to_string())
+}
+
+fn create_password_generator() -> PasswordGenerator {
+    PasswordGenerator {
+        length: 16,
+        numbers: true,
+        lowercase_letters: true,
+        uppercase_letters: true,
+        symbols: true,
+        spaces: false,
+        exclude_similar_characters: true,
+        strict: true,
+    }
 }
 
 fn generate_password(password_gen: &PasswordGenerator) -> Result<PasswordWithScore, MyError> {
@@ -72,27 +87,6 @@ fn generate_password(password_gen: &PasswordGenerator) -> Result<PasswordWithSco
     let analyzed = analyzer::analyze(&password);
     let score = scorer::score(&analyzed);
     Ok((password, score))
-}
-
-fn generate_passwords_using_rayon(
-    number_of_passwords: usize,
-    length: usize,
-) -> Result<Vec<PasswordWithScore>, MyError> {
-    let pg = PasswordGenerator {
-        length,
-        numbers: true,
-        lowercase_letters: true,
-        uppercase_letters: true,
-        symbols: true,
-        spaces: false,
-        exclude_similar_characters: true,
-        strict: true,
-    };
-
-    (0..number_of_passwords)
-        .into_par_iter()
-        .map(|_| generate_password(&pg))
-        .collect::<Result<Vec<_>, _>>()
 }
 
 #[cfg(test)]
