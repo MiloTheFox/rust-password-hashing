@@ -6,46 +6,59 @@ use rayon::prelude::*;
 use zeroize::Zeroize;
 
 mod errors;
-use errors::{ArgonError, MyError};
+use errors::{MyError};
 
 // Configuration Constants
-const MEMORY_COST: u32 = 50;
-const TIME_COST: u32 = 2;
-const PARALLELISM: u32 = 2;
+const MEMORY_COST: u32 = 128 * 2048; // 256 MiB
+const TIME_COST: u32 = 3;
+const PARALLELISM: u32 = 4;
 const OUTPUT_LEN: usize = 32;
+const MAX_PASSWORD_OUTPUT: u32 = 20;
+const PASSWORD_LENGTH: usize = 32;
 
 type PasswordWithScore = (String, f64);
 
 fn main() -> Result<(), MyError> {
     let argon2 = create_argon2();
 
-    // Generate and hash passwords in parallel
-    let results: Result<Vec<_>, _> = (0..16)
+    // Step 1: Generate passwords in parallel
+    let generated_passwords: Result<Vec<PasswordWithScore>, MyError> = 
+        (0..MAX_PASSWORD_OUTPUT)
+            .into_par_iter()
+            .map(|_| {
+                let generator = create_password_generator();
+                let (password, score) = generate_password(&generator)?;
+                println!("Generated password: {} (score: {:.2})", password.green(), score);
+                Ok((password, score))
+            })
+            .collect();
+
+    let generated_passwords = generated_passwords?;
+
+    // Step 2: Hash passwords in parallel
+    let hashed_passwords: Result<Vec<_>, MyError> = generated_passwords
         .into_par_iter()
-        .map(|_| {
-            let password_gen = create_password_generator();
-            let (mut password, _) = generate_password(&password_gen)?;
+        .map(|(mut password, _score)| {
             let salt = SaltString::generate(&mut OsRng);
-            let hash_result = hash_password(&argon2, &password, &salt);
-            password.zeroize(); // Zeroize the password to prevent memory-based attacks
-            hash_result
+            let hash = hash_password(&argon2, &password, &salt);
+            password.zeroize(); // Zeroize right after hashing
+            hash
         })
         .collect();
 
-    match results {
+    // Step 3: Output results
+    match hashed_passwords {
         Ok(hashes) => {
-            hashes
-                .into_par_iter()
-                .for_each(|hash| println!("Hash output: {}", hash));
-            println!(
-                "{}",
-                "[LOG] All passwords have been hashed successfully".green()
-            );
+            hashes.into_iter().for_each(|hash| {
+                println!("Hash output: {}", hash);
+            });
+            println!("{}", "[LOG] All passwords have been hashed successfully".green());
             Ok(())
         }
         Err(e) => Err(e),
     }
 }
+
 
 fn create_argon2() -> Argon2<'static> {
     let params = Params::new(MEMORY_COST, TIME_COST, PARALLELISM, Some(OUTPUT_LEN))
@@ -53,15 +66,11 @@ fn create_argon2() -> Argon2<'static> {
     Argon2::new(Algorithm::Argon2id, Version::V0x13, params)
 }
 
-fn hash_password(
-    argon2: &Argon2<'_>,
-    password: &str,
-    salt: &SaltString,
-) -> Result<String, MyError> {
+fn hash_password(argon2: &Argon2<'_>, password: &str, salt: &SaltString) -> Result<String, MyError> {
     argon2
         .hash_password(password.as_bytes(), salt)
-        .map_err(|source| MyError::HashingError {
-            source: ArgonError::from(errors::ArgonError(source)),
+        .map_err(|e| MyError::HashingError {
+            source: e.into(), // automatically converts to ArgonError if From is implemented
             salt: salt.clone(),
         })
         .map(|hash| hash.to_string())
@@ -69,7 +78,7 @@ fn hash_password(
 
 fn create_password_generator() -> PasswordGenerator {
     PasswordGenerator {
-        length: 16,
+        length: PASSWORD_LENGTH,
         numbers: true,
         lowercase_letters: true,
         uppercase_letters: true,

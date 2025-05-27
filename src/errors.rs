@@ -12,13 +12,22 @@ impl std::fmt::Display for ArgonError {
 
 impl std::error::Error for ArgonError {}
 
-#[derive(Error, Debug)]
+
+impl From<PasswordHashError> for ArgonError {
+    fn from(err: PasswordHashError) -> Self {
+        ArgonError(err)
+    }
+}
+
+#[derive(Debug, Error)]
 pub enum MyError {
-    #[error("Error hashing password with salt {salt}: {source}")]
+    #[error("password hashing failed")]
     HashingError {
+        #[source]
         source: ArgonError,
         salt: SaltString,
     },
-    #[error("Failed to generate password")]
+
+    #[error("password generation failed")]
     PasswordGenerationError,
 }
