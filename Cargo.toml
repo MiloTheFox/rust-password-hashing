@@ -1,6 +1,6 @@
 [package]
 name = "pw-hashing-rust"
-version = "0.2.4"
+version = "0.2.5"
 edition = "2024"
 authors = ["MiloTheFox"]
 
@@ -27,3 +27,4 @@ codegen-units = 1
 debug = false
 incremental = false
 panic = "abort"
+
