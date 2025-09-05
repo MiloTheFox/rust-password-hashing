@@ -8,20 +8,19 @@ use zeroize::Zeroize;
 mod errors;
 use errors::{MyError};
 
-// Configuration Constants
+/// Argon2 Memory Cost
+///
+/// Note: `MEMORY_COST` is expressed in KiB (Kibibytes).
+/// Example: 262,144 KiB = 256 MiB = 0x40000
+///
+/// ⚠️ KiB/MiB (binary prefixes) differ from KB/MB (decimal prefixes):
+/// - 1 KiB = 1024 bytes
+/// - 1 MiB = 1024 KiB = 1,048,576 bytes
+/// - 1 KB = 1000 bytes
+/// - 1 MB = 1000 KB = 1,000,000 bytes
+///
+/// For more info: <https://en.wikipedia.org/wiki/Binary_prefix>
 const MEMORY_COST: u32 = 128 * 2048;
-/*
-Note: MEMORY_COST is expressed in KiB (Kibibytes).
-Here: 262,144 KiB = 256 MiB
-
-⚠️ KiB/MiB (binary prefixes) differ from KB/MB (decimal prefixes):
-- 1 KiB = 1024 bytes
-- 1 MiB = 1024 KiB = 1,048,576 bytes
-- 1 KB = 1000 bytes
-- 1 MB = 1000 KB = 1,000,000 bytes
-
-For more info: https://en.wikipedia.org/wiki/Binary_prefix
-*/
 
 /// Number of iterations (or passes) Argon2 makes over the memory.
 /// Higher = more CPU time per hash.
@@ -34,7 +33,9 @@ const TIME_COST: u32 = 4;
 const PARALLELISM: u32 = 4;
 
 /// Length of the output hash in bytes.
+/// 
 /// 32 bytes = 256-bit hash, which is standard and secure for password hashing.
+/// 
 /// You could reduce to 16 bytes, but 32 gives better collision resistance.
 const OUTPUT_LEN: usize = 32;
 
