@@ -9,12 +9,40 @@ mod errors;
 use errors::{MyError};
 
 // Configuration Constants
-const MEMORY_COST: u32 = 128 * 2048; // 256 MiB
-const TIME_COST: u32 = 3;
+const MEMORY_COST: u32 = 128 * 2048;
+/*
+Note: MEMORY_COST is expressed in KiB (Kibibytes).
+Here: 262,144 KiB = 256 MiB
+
+⚠️ KiB/MiB (binary prefixes) differ from KB/MB (decimal prefixes):
+- 1 KiB = 1024 bytes
+- 1 MiB = 1024 KiB = 1,048,576 bytes
+- 1 KB = 1000 bytes
+- 1 MB = 1000 KB = 1,000,000 bytes
+
+For more info: https://en.wikipedia.org/wiki/Binary_prefix
+*/
+
+/// Number of iterations (or passes) Argon2 makes over the memory.
+/// Higher = more CPU time per hash.
+/// OWASP recommends 2–4 depending on your latency/security trade-off.
+const TIME_COST: u32 = 4;
+
+/// Degree of parallelism (number of threads used).
+/// Typically set to the number of CPU cores available (or <= cores).
+/// Improves performance without reducing security.
 const PARALLELISM: u32 = 4;
+
+/// Length of the output hash in bytes.
+/// 32 bytes = 256-bit hash, which is standard and secure for password hashing.
+/// You could reduce to 16 bytes, but 32 gives better collision resistance.
 const OUTPUT_LEN: usize = 32;
-const MAX_PASSWORD_OUTPUT: u32 = 20;
-const PASSWORD_LENGTH: usize = 32;
+
+/// Number of passwords to generate during execution.
+const PASSWORD_COUNT: usize = 20;
+
+/// Length of each generated password.
+const PASSWORD_LENGTH: usize = 16;
 
 type PasswordWithScore = (String, f64);
 
@@ -23,7 +51,7 @@ fn main() -> Result<(), MyError> {
 
     // Step 1: Generate passwords in parallel
     let generated_passwords: Result<Vec<PasswordWithScore>, MyError> = 
-        (0..MAX_PASSWORD_OUTPUT)
+        (0..PASSWORD_COUNT)
             .into_par_iter()
             .map(|_| {
                 let generator = create_password_generator();
@@ -41,7 +69,7 @@ fn main() -> Result<(), MyError> {
         .map(|(mut password, _score)| {
             let salt = SaltString::generate(&mut OsRng);
             let hash = hash_password(&argon2, &password, &salt);
-            password.zeroize(); // Zeroize right after hashing
+            password.zeroize(); // Zeroize right after hashing for added security
             hash
         })
         .collect();
@@ -70,11 +98,12 @@ fn hash_password(argon2: &Argon2<'_>, password: &str, salt: &SaltString) -> Resu
     argon2
         .hash_password(password.as_bytes(), salt)
         .map_err(|e| MyError::HashingError {
-            source: e.into(), // automatically converts to ArgonError if From is implemented
+            source: errors::ArgonError(e),
             salt: salt.clone(),
         })
         .map(|hash| hash.to_string())
 }
+
 
 fn create_password_generator() -> PasswordGenerator {
     PasswordGenerator {
