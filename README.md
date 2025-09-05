@@ -1,98 +1,189 @@
-# Password Hashing in Rust using Argon2
-This repository features an implementation of password hashing in Rust using the Argon2 algorithm. For those who are not familiar with this topic, password hashing is a way of securing user passwords by transforming them into a different format, which is then stored instead of the original password. For more information on this topic e.g. how it works and why it is so important for cyber-security, feel free to refer to these resources:
+# 🔐 Password Hashing in Rust using Argon2
 
-[Password Storage Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html)
+This repository demonstrates a **secure implementation of password hashing** in Rust using the [Argon2id](https://www.password-hashing.net/) algorithm.
 
-[What Salting has to do with Password Security](https://voleer.com/blog/what-salting-has-to-do-with-password-security)
+Password hashing is essential for protecting user credentials: instead of storing raw passwords, we (in the best-case scenario) store their *hashes*. When implemented correctly, this makes it significantly harder for attackers to recover the original passwords.
 
-[How does Hashing and Salting work?](https://www.tokenex.com/blog/ab-hashing-vs-salting-how-do-these-functions-work/)
+📖 For background reading:
 
-### Keep in mind that this is a basic implementation and will most likely get updates every once in a while to maintain its performance and stability.
+* [OWASP Password Storage Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html)
+* [What Salting has to do with Password Security](https://voleer.com/blog/what-salting-has-to-do-with-password-security)
+* [Hashing vs. Salting explained](https://www.tokenex.com/blog/ab-hashing-vs-salting-how-do-these-functions-work/)
 
-## Argon2
+---
 
-Argon2 is a modern password hashing algorithm that won the [Password Hashing Competition](https://www.password-hashing.net/) in 2015. It is designed to be resistant against brute-force and side-channel attacks by requiring a large amount of memory and time to compute the hash.
+## ⚡ Argon2
 
-## Security and trade-offs of all 3 Argon2 variants
-Argon2 has three variants: Argon2d, Argon2i and Argon2id. The main differences between them are:
+Argon2 is a modern memory-hard password hashing algorithm and winner of the [Password Hashing Competition (PHC)](https://www.password-hashing.net/) in 2015. It is designed to resist:
 
+* **Brute-force attacks** by requiring substantial memory and computation.
+* **GPU/ASIC cracking** by being memory-hard.
+* **Side-channel attacks** (depending on variant).
 
-| Variant | Resistance to GPU Cracking Attacks | Resistance to Side-Channel Attacks |
-|---------|-----------------------------------|------------------------------------|
-| Argon2d | High                              | Low                                |
-| Argon2i | Low                               | High                               |
-| Argon2id| Medium                            | Medium                             |
+### Variants
 
+| Variant      | Resistance to GPU Attacks | Resistance to Side-Channel Attacks | Notes                               |
+| ------------ | ------------------------- | ---------------------------------- | ----------------------------------- |
+| **Argon2d**  | High                      | Low                                | Focuses on GPU resistance.          |
+| **Argon2i**  | Low                       | High                               | Focuses on side-channel resistance. |
+| **Argon2id** | Good balance              | Good balance                       | ✔️ Recommended default.             |
 
-In general, Argon2id is recommended as the default choice for most applications. However, depending on your specific use case and security requirements, you may want to choose a different variant or adjust the parameters of the algorithm, such as the memory size, the number of iterations, and the degree of parallelism.
+---
 
-## Understanding the Attacks
+## ⚠️ Security Considerations
 
-Let's understand what the mentioned attacks actually are:
+Always adapt Argon2 parameters to your environment and threat model:
 
-- A **Cache-Timing Attack** is a type of side-channel attack where an attacker gains information about a system by tracking cache access made by the victim system in a shared environment. 
+* **Memory cost:** Higher values increase GPU/ASIC resistance.
+* **Time cost:** Higher values increase CPU effort per hash.
+* **Parallelism:** Tune to available cores.
 
-- A **Side-Channel Attack** is based on the fact that when cryptosystems operate, they cause physical effects, and the information from these effects can provide clues about the system. 
+For guidance, see:
 
-- A **GPU-Based Attack** exploits the graphics processing unit (GPU) of a system.
+* [OWASP Password Storage Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html)
 
-Because I highly value your security and ask you to be **ABSOLUTELY CAUTIOUS** when using someone else's code, software etc. here are sources to refer to about how to protect yourself from the above mentioned attacks:
+More about potential attack vectors:
 
-[Source related to Cache-Timing Attacks](https://link.springer.com/article/10.1007/s13389-020-00246-3)
+* [Cache-Timing Attacks](https://link.springer.com/article/10.1007/s13389-020-00246-3)
+* [Side-Channel Attacks](https://techgenix.com/side-channel-attack/)
+* [GPU-Based Attacks](https://marksilberstein.com/wp-content/uploads/2020/02/gpuattack.pdf)
 
-[Source related to Side-Channel Attacks](https://techgenix.com/side-channel-attack/)
+---
 
-[Source related to GPU-Based Attacks](https://marksilberstein.com/wp-content/uploads/2020/02/gpuattack.pdf)
+## 🛠️ Installation
 
-## How to run the code?
+### 1. Install Rust
 
-1. Note: **If you already have rust installed, skip this step**
+If you don’t already have Rust installed:
 
-Here are the necessary steps to get the Rust Compiler for the different Operating Systems Windows, MacOS or Linux:
-## Keep in mind that this may change in the future!
+* **Windows**
 
-  **Windows**:
-  1. Install Visual Studio (recommended) or the Microsoft C++ Build Tools.
-  2. Install Rust from the Rust website. The website detects that you're running Windows, and it offers you 64- and 32-bit installers of the rustup tool for Windows.
-  3. Install the Microsoft C and C++ (MSVC) toolchain by running `rustup default stable-msvc`.
+  1. Install Visual Studio (recommended) or Microsoft C++ Build Tools.
+  2. Install Rust from [rustup.rs](https://rustup.rs/).
+  3. Install the MSVC toolchain:
 
-  **MacOS**:
-  1. Open a terminal and enter the following command: `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`.
-  2. Install a C compiler by running: `xcode-select --install`.
-  
-  **Linux**:
-  1. Download the installation script with the curl command and run it in the terminal: `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`.
-  2. Write your Rust program in a file with a `.rs` extension.
+     ```bash
+     rustup default stable-msvc
+     ```
 
-To actually run the code, 
+* **macOS**
 
-2. **Clone the Repository**: First, you need to clone the repository to your local machine. You can do this using Git with the following command:
-   ```shell
-   git clone https://github.com/LunaTheFox20/rust-password-hashing.git
-   ```
+  ```bash
+  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+  xcode-select --install
+  ```
 
-3. **Navigate to the Project Directory**: Use the `cd` (`chdir` if you use Linux or MacOS) command to navigate to the directory containing the project files:
-- Windows:
-  
-   ```shell
-   cd rust-password-hashing
-   ```
-  
- - MacOS & Linux 
-   ```shell
-   chdir rust-password-hashing
-   ```
+* **Linux**
 
-4. **Build the Project**: Use the Rust package manager, Cargo, to build the project. This will compile your code and create an executable file. Run the following command:
-   ```shell
-   cargo build --release
-   ```
-   The `--release` flag will build the project in release mode, with optimizations for performance.
+  ```bash
+  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+  ```
 
-5. **Run the Program**: Finally, you can run the program using Cargo with the following command:
-   ```bash
-   cargo run --release
-   ```
-   The program will then generate a specific amount of passwords. (For the length, I recommend at least 16 characters)
+### 2. Clone the Repository
 
-6. After the passwords have been generated, the program will return the generated hash.
+```bash
+git clone https://github.com/MiloTheFox/rust-password-hashing.git
+cd rust-password-hashing
+```
+
+### 3. Build the Project
+
+```bash
+cargo build --release
+```
+
+### 4. Run the Program
+
+```bash
+cargo run --release
+```
+
+---
+
+## ▶️ Example Output
+
+```text
+Generated password: 4Jq^p9As!dF2 (score: 82.3)
+Hash output: $argon2id$v=19$m=262144,t=4,p=4$Qm4X1c2...$T+N4J7...
+[LOG] All passwords have been hashed successfully
+```
+
+By default, the program:
+
+* Generates **20 passwords**.
+* Each password has length **16**.
+* You can adjust these in `main.rs` via:
+
+  ```rust
+  const PASSWORD_COUNT: usize = 20;
+  const PASSWORD_LENGTH: usize = 16;
+  ```
+
+---
+
+## 📦 Dependencies
+
+This project uses the following crates:
+
+```toml
+argon2       = "0.5.3"
+rand_core    = { version = "0.6.4", features = ["getrandom"] }
+colored      = "2.1.0"
+zeroize      = "1.7.0"
+futures      = "0.3.30"
+passwords    = { version = "3.1.16", features = ["common-password"] }
+lazy_static  = "1.4.0"
+rayon        = "1.10.0"
+log          = "0.4.21"
+thiserror    = "1.0.58"
+rand         = "0.9.0-alpha.1"
+```
+
+All dependencies are installed automatically via Cargo.
+
+---
+
+## 📊 Benchmarking Argon2 Parameters
+
+Hashing cost depends heavily on your hardware. To tune parameters (`MEMORY_COST`, `TIME_COST`, `PARALLELISM`) for your system, you can measure execution time:
+
+```rust
+use argon2::{Argon2, Algorithm, Params, Version, password_hash::{SaltString, PasswordHasher}};
+use rand_core::OsRng;
+use std::time::Instant;
+
+fn main() {
+    let params = Params::new(256 * 1024, 4, 4, Some(32)).unwrap(); // 256 MiB, t=4, p=4
+    let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
+
+    let salt = SaltString::generate(&mut OsRng);
+    let password = "benchmark-password";
+
+    let start = Instant::now();
+    let hash = argon2.hash_password(password.as_bytes(), &salt).unwrap();
+    let elapsed = start.elapsed();
+
+    println!("Hash: {}", hash);
+    println!("Elapsed time: {:.2?}", elapsed);
+}
+```
+
+💡 Aim for around **100–250 ms per hash** on your target machine.
+
+* If it's too fast → increase `TIME_COST` or `MEMORY_COST`.
+* If it's too slow → decrease them.
+
+---
+
+## 📜 License
+
+This project is licensed under the **MIT License**. See [LICENSE](https://github.com/MiloTheFox/rust-password-hashing/LICENSE.md) for details.
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome!
+
+* Open issues for bugs or feature requests.
+* Submit PRs for fixes or improvements.
