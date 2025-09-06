@@ -1,49 +1,31 @@
 use argon2::{password_hash::SaltString, Algorithm, Argon2, Params, PasswordHasher, Version};
-use colored::Colorize;
-use passwords::{analyzer, scorer, PasswordGenerator};
-use rand_core::OsRng;
+use colored::{Colorize, CustomColor};
+use passwords::PasswordGenerator;
+use rand::rngs::OsRng;
 use rayon::prelude::*;
 use zeroize::Zeroize;
+use zxcvbn::zxcvbn;
 
 mod errors;
-use errors::{MyError};
+use errors::*;
 
 /// Argon2 Memory Cost
-///
-/// Note: `MEMORY_COST` is expressed in KiB (Kibibytes).
-/// Example: 262,144 KiB = 256 MiB = 0x40000
-///
-/// ⚠️ KiB/MiB (binary prefixes) differ from KB/MB (decimal prefixes):
-/// - 1 KiB = 1024 bytes
-/// - 1 MiB = 1024 KiB = 1,048,576 bytes
-/// - 1 KB = 1000 bytes
-/// - 1 MB = 1000 KB = 1,000,000 bytes
-///
-/// For more info: <https://en.wikipedia.org/wiki/Binary_prefix>
-const MEMORY_COST: u32 = 128 * 2048;
+const MEMORY_COST: u32 = 256 * 1024;
 
-/// Number of iterations (or passes) Argon2 makes over the memory.
-/// Higher = more CPU time per hash.
-/// OWASP recommends 2–4 depending on your latency/security trade-off.
+/// Iterationen
 const TIME_COST: u32 = 4;
 
-/// Degree of parallelism (number of threads used).
-/// Typically set to the number of CPU cores available (or <= cores).
-/// Improves performance without reducing security.
+/// Threads
 const PARALLELISM: u32 = 4;
 
-/// Length of the output hash in bytes.
-/// 
-/// 32 bytes = 256-bit hash, which is standard and secure for password hashing.
-/// 
-/// You could reduce to 16 bytes, but 32 gives better collision resistance.
+/// Länge des Hashes
 const OUTPUT_LEN: usize = 32;
 
-/// Number of passwords to generate during execution.
-const PASSWORD_COUNT: usize = 20;
+/// Anzahl Passwörter
+const PASSWORD_COUNT: usize = 50;
 
-/// Length of each generated password.
-const PASSWORD_LENGTH: usize = 16;
+/// Länge der Passwörter
+const PASSWORD_LENGTH: usize = 32;
 
 type PasswordWithScore = (String, f64);
 
@@ -51,13 +33,17 @@ fn main() -> Result<(), MyError> {
     let argon2 = create_argon2();
 
     // Step 1: Generate passwords in parallel
-    let generated_passwords: Result<Vec<PasswordWithScore>, MyError> = 
+    let generated_passwords: Result<Vec<PasswordWithScore>, MyError> =
         (0..PASSWORD_COUNT)
             .into_par_iter()
             .map(|_| {
                 let generator = create_password_generator();
                 let (password, score) = generate_password(&generator)?;
-                println!("Generated password: {} (score: {:.2})", password.green(), score);
+                println!(
+                    "Generated password: {} (zxcvbn score: {:.0}/4)",
+                    password.green(),
+                    score
+                );
                 Ok((password, score))
             })
             .collect();
@@ -68,26 +54,30 @@ fn main() -> Result<(), MyError> {
     let hashed_passwords: Result<Vec<_>, MyError> = generated_passwords
         .into_par_iter()
         .map(|(mut password, _score)| {
-            let salt = SaltString::generate(&mut OsRng);
-            let hash = hash_password(&argon2, &password, &salt);
-            password.zeroize(); // Zeroize right after hashing for added security
-            hash
+            let salt = SaltString::try_from_rng(&mut OsRng)?;
+            let hash = hash_password(&argon2, &password, &salt)?;
+            password.zeroize();
+            Ok(hash)
         })
         .collect();
 
-    // Step 3: Output results
     match hashed_passwords {
         Ok(hashes) => {
             hashes.into_iter().for_each(|hash| {
-                println!("Hash output: {}", hash);
+                println!(
+                    "Hash output: {}",
+                    hash.custom_color(CustomColor::new(255, 165, 0))
+                );
             });
-            println!("{}", "[LOG] All passwords have been hashed successfully".green());
+            println!(
+                "{}",
+                "[LOG] All passwords have been hashed successfully".green()
+            );
             Ok(())
         }
         Err(e) => Err(e),
     }
 }
-
 
 fn create_argon2() -> Argon2<'static> {
     let params = Params::new(MEMORY_COST, TIME_COST, PARALLELISM, Some(OUTPUT_LEN))
@@ -95,16 +85,22 @@ fn create_argon2() -> Argon2<'static> {
     Argon2::new(Algorithm::Argon2id, Version::V0x13, params)
 }
 
-fn hash_password(argon2: &Argon2<'_>, password: &str, salt: &SaltString) -> Result<String, MyError> {
-    argon2
+/// Hash a password with Argon2 and return the encoded hash string.
+fn hash_password(
+    argon2: &Argon2<'_>,
+    password: &str,
+    salt: &SaltString,
+) -> Result<String, MyError> {
+    let ph = argon2
         .hash_password(password.as_bytes(), salt)
         .map_err(|e| MyError::HashingError {
-            source: errors::ArgonError(e),
+            source: ArgonError {
+                message: e.to_string(),
+            },
             salt: salt.clone(),
-        })
-        .map(|hash| hash.to_string())
+        })?;
+    Ok(ph.to_string())
 }
-
 
 fn create_password_generator() -> PasswordGenerator {
     PasswordGenerator {
@@ -119,18 +115,66 @@ fn create_password_generator() -> PasswordGenerator {
     }
 }
 
-fn generate_password(password_gen: &PasswordGenerator) -> Result<PasswordWithScore, MyError> {
+fn human_readable_seconds(secs: f64) -> String {
+    if secs.is_nan() || secs.is_infinite() {
+        return "unbounded".to_string();
+    }
+    if secs < 1.0 {
+        "less than a second".to_string()
+    } else if secs < 60.0 {
+        format!("{} seconds", secs.round() as u64)
+    } else if secs < 3600.0 {
+        format!("{} minutes", (secs / 60.0).round() as u64)
+    } else if secs < 86400.0 {
+        format!("{} hours", (secs / 3600.0).round() as u64)
+    } else if secs < 31_536_000.0 {
+        format!("{} days", (secs / 86400.0).round() as u64)
+    } else if secs < 31_536_000.0 * 100.0 {
+        format!("{} years", (secs / 31_536_000.0).round() as u64)
+    } else {
+        "centuries".to_string()
+    }
+}
+
+/// Generate a password and score it with zxcvbn.
+fn generate_password(
+    password_gen: &PasswordGenerator,
+) -> Result<PasswordWithScore, MyError> {
     let password = password_gen
         .generate_one()
         .map_err(|_| MyError::PasswordGenerationError)?;
-    let analyzed = analyzer::analyze(&password);
-    let score = scorer::score(&analyzed);
+
+    let estimate = {
+        let res = std::panic::catch_unwind(|| zxcvbn(&password, &[]));
+        match res {
+            Ok(entropy) => entropy,
+            Err(_) => {
+                return Err(MyError::StrengthEstimationError(crate::errors::ZxcvbnError {
+                    message: "zxcvbn crashed during password estimation".to_string(),
+                }))
+            }
+        }
+    };
+
+    let score = estimate.score() as u8 as f64;
+    let guesses = estimate.guesses() as f64;
+    let entropy_bits = if guesses > 0.0 { guesses.log2() } else { 0.0 };
+    let guesses_log10 = estimate.guesses_log10();
+    let crack_seconds_offline_fast = guesses / 1e10_f64;
+    let crack_display_offline_fast = human_readable_seconds(crack_seconds_offline_fast);
+
+    println!(
+        "[zxcvbn] score: {:.0}/4 — entropy: {:.2} bits — guesses: {:.0} (~10^{:.2}) — offline_fast: {}",
+        score, entropy_bits, guesses, guesses_log10, crack_display_offline_fast
+    );
+
     Ok((password, score))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rand_core::OsRng;
 
     const PASSWORDGENERATOR: PasswordGenerator = PasswordGenerator {
         length: 16,
@@ -146,8 +190,9 @@ mod tests {
     #[test]
     fn test_generate_password() {
         match generate_password(&PASSWORDGENERATOR) {
-            Ok((password, _score)) => {
+            Ok((password, score)) => {
                 assert!(password.len() == 16 && password.chars().all(|c| c.is_ascii_graphic()));
+                assert!((0.0..=4.0).contains(&score));
             }
             Err(e) => {
                 panic!("Password generation failed with error: {}", e);
@@ -156,16 +201,17 @@ mod tests {
     }
 
     #[test]
-    fn test_hash_password() {
+    fn test_hash_password() -> Result<(), Box<dyn std::error::Error>> {
         let (mut password, _score) = match generate_password(&PASSWORDGENERATOR) {
             Ok(result) => result,
             Err(e) => panic!("Password generation failed with error: {}", e),
         };
 
         let argon2 = create_argon2();
-        let salt = SaltString::generate(&mut OsRng);
-        let result = argon2.hash_password(&password.as_bytes(), &salt);
+        let salt = SaltString::try_from_rng(&mut OsRng)?;
+        let result = argon2.hash_password(password.as_bytes(), &salt);
         assert!(result.is_ok());
         password.zeroize();
+        Ok(())
     }
 }
