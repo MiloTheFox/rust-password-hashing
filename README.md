@@ -6,9 +6,9 @@ Password hashing is essential for protecting user credentials: instead of storin
 
 📖 For background reading:
 
-* [OWASP Password Storage Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html)
-* [What Salting has to do with Password Security](https://voleer.com/blog/what-salting-has-to-do-with-password-security)
-* [Hashing vs. Salting explained](https://www.tokenex.com/blog/ab-hashing-vs-salting-how-do-these-functions-work/)
+* [OWASP Argon2id Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html#argon2id)
+* [Adding Salt to Hashing: A better way to store passwords](https://auth0.com/blog/adding-salt-to-hashing-a-better-way-to-store-passwords/)
+* [Why hashing passwords is important](https://www.troyhunt.com/we-didnt-encrypt-your-password-we-hashed-it-heres-what-that-means/)
 
 ---
 
@@ -45,7 +45,7 @@ For guidance, see:
 More about potential attack vectors:
 
 * [Cache-Timing Attacks](https://link.springer.com/article/10.1007/s13389-020-00246-3)
-* [Side-Channel Attacks](https://techgenix.com/side-channel-attack/)
+* [Side-Channel Attacks](https://www.techtarget.com/searchsecurity/definition/side-channel-attack)
 * [GPU-Based Attacks](https://marksilberstein.com/wp-content/uploads/2020/02/gpuattack.pdf)
 
 ---
