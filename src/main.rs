@@ -12,22 +12,33 @@ use errors::*;
 /// Argon2 Memory Cost
 const MEMORY_COST: u32 = 256 * 1024;
 
-/// Iterationen
+/// Iterators
 const TIME_COST: u32 = 4;
 
 /// Threads
 const PARALLELISM: u32 = 4;
 
-/// Länge des Hashes
+/// Length of the hash
 const OUTPUT_LEN: usize = 32;
 
-/// Anzahl Passwörter
+/// Amount of passwords to be generated
 const PASSWORD_COUNT: usize = 50;
 
-/// Länge der Passwörter
+/// Length of the passwords
 const PASSWORD_LENGTH: usize = 32;
 
 type PasswordWithScore = (String, f64);
+
+const MINUTE: u64 = 60;
+const HOUR: u64 = 60 * MINUTE;
+const DAY: u64 = 24 * HOUR;
+const YEAR: u64 = 365 * DAY;
+const CENTURY_THRESHOLD: u64 = YEAR * 100;
+
+const HOUR_MAX: u64 = HOUR - 1;
+const DAY_MAX: u64 = DAY - 1;
+const YEAR_MAX: u64 = YEAR - 1;
+const CENTURY_MAX: u64 = CENTURY_THRESHOLD - 1;
 
 fn main() -> Result<(), MyError> {
     let argon2 = create_argon2();
@@ -116,25 +127,26 @@ fn create_password_generator() -> PasswordGenerator {
 }
 
 fn human_readable_seconds(secs: f64) -> String {
-    if secs.is_nan() || secs.is_infinite() {
-        return "unbounded".to_string();
-    }
-    if secs < 1.0 {
-        "less than a second".to_string()
-    } else if secs < 60.0 {
-        format!("{} seconds", secs.round() as u64)
-    } else if secs < 3600.0 {
-        format!("{} minutes", (secs / 60.0).round() as u64)
-    } else if secs < 86400.0 {
-        format!("{} hours", (secs / 3600.0).round() as u64)
-    } else if secs < 31_536_000.0 {
-        format!("{} days", (secs / 86400.0).round() as u64)
-    } else if secs < 31_536_000.0 * 100.0 {
-        format!("{} years", (secs / 31_536_000.0).round() as u64)
-    } else {
-        "centuries".to_string()
+    if !secs.is_finite() { return "unbounded".to_string(); }
+    if secs < 1.0 { return "less than a second".to_string(); }
+
+    // Round first and work in integers to avoid repeated float ops.
+    let s = secs.round().max(0.0) as u64;
+
+    match s {
+        0..=59 => plural(s, "second"),
+        60..=HOUR_MAX => plural(s / MINUTE, "minute"),
+        HOUR..=DAY_MAX => plural(s / HOUR, "hour"),
+        DAY..=YEAR_MAX => plural(s / DAY, "day"),
+        YEAR..=CENTURY_MAX => plural(s / YEAR, "year"),
+        _ => "centuries".to_string(),
     }
 }
+
+fn plural(n: u64, unit: &str) -> String {
+    if n == 1 { format!("1 {unit}") } else { format!("{n} {unit}s") }
+}
+
 
 /// Generate a password and score it with zxcvbn.
 fn generate_password(
